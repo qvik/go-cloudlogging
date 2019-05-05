@@ -1,7 +1,6 @@
 package cloudlogging
 
 import (
-	"encoding/json"
 	"io/ioutil"
 	"os"
 	"strings"
@@ -60,59 +59,16 @@ func TestLocalLogger(t *testing.T) {
 			t.Errorf("failed to create logger: %v", err)
 		}
 
-		log.SetLogLevel(Trace)
+		log.SetLogLevel(Debug)
 
-		log.Debugf("Test")
-		if err := log.Flush(); err != nil {
-			t.Errorf("failed to flush logger: %v", err)
-		}
+		log.Debugf("Test A=%v,B=%v", 1, 2)
+
+		// Note: we cannot call Close() or Flush() b/c we have captured stdout
+		// and zap's Sync() will crash otherwise
 	})
 
-	if !strings.HasSuffix(logOutput, "level=debug msg=Test") {
+	if !strings.HasSuffix(logOutput, "Test A=1,B=2") {
 		t.Errorf("Invalid log output: %v", logOutput)
-	}
-}
-
-func TestLocalFluentDLogger(t *testing.T) {
-	logOutput := captureStdout(func() {
-		opts := []LogOption{
-			WithLocalFluentD(),
-		}
-		log, err := NewLogger(opts...)
-		if err != nil {
-			t.Errorf("failed to create logger: %v", err)
-		}
-
-		log.SetLogLevel(Trace)
-
-		log.Debugf("Test")
-		if err := log.Flush(); err != nil {
-			t.Errorf("failed to flush logger: %v", err)
-		}
-	})
-
-	type fluentdmsg struct {
-		Message   string `json:"message"`
-		Timestamp string `json:"timestamp"`
-		Severity  string `json:"severity"`
-	}
-
-	msg := new(fluentdmsg)
-	if err := json.Unmarshal([]byte(logOutput), msg); err != nil {
-		t.Errorf("failed to read fluentd output: %v", err)
-		return
-	}
-
-	if msg.Message == "" {
-		t.Errorf("missing message in fluentd log entry")
-	}
-
-	if msg.Severity == "" {
-		t.Errorf("missing severity in fluentd log entry")
-	}
-
-	if msg.Timestamp == "" {
-		t.Errorf("missing timestamp in fluentd log entry")
 	}
 }
 
@@ -128,11 +84,24 @@ func TestAppEngine(t *testing.T) {
 		t.Fatalf("failed to create logger: %v", err)
 	}
 
-	log.SetLogLevel(Trace)
+	log.SetLogLevel(Debug)
 
 	log.Infof("Hello, world")
 
 	if err := log.Flush(); err == nil {
 		t.Errorf("flush must fail here!")
 	}
+}
+
+// GODOC EXAMPLES
+
+func ExampleDebug() {
+	log, _ := NewLocalOnlyLogger()
+	log.Debug("Debug log message", "label1", 1, "label2", 2)
+}
+
+func ExampleDebugf() {
+	log, _ := NewLocalOnlyLogger()
+	myMsg := "message"
+	log.Debugf("Debug with msg: %v", myMsg)
 }

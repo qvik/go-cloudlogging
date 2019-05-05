@@ -1,11 +1,13 @@
 package cloudlogging
 
 import (
-	"google.golang.org/genproto/googleapis/api/monitoredres"
 	"io"
+
+	"google.golang.org/genproto/googleapis/api/monitoredres"
 )
 
 type options struct {
+	logLevel                     Level
 	gcpProjectID                 string
 	credentialsFilePath          string
 	useLocal                     bool
@@ -14,11 +16,23 @@ type options struct {
 	stackdriverLogID             string
 	stackDriverMonitoredResource *monitoredres.MonitoredResource
 	localOutput                  io.Writer
+	commonLabels                 map[string]string
 }
 
 // LogOption is an option for the cloudlogging API.
 type LogOption interface {
 	apply(*options)
+}
+
+type withLevel Level
+
+func (w withLevel) apply(opts *options) {
+	opts.logLevel = Level(w)
+}
+
+// WithLevel returns a LogOption that defines our log level.
+func WithLevel(logLevel Level) LogOption {
+	return withLevel(logLevel)
 }
 
 type withLocalOutput struct {
@@ -89,4 +103,18 @@ func WithStackdriver(gcpProjectID, credentialsFilePath,
 		stackdriverLogID:    stackdriverLogID,
 		monitoredResource:   monitoredResource,
 	}
+}
+
+type withCommonLabels struct {
+	commonLabels map[string]string
+}
+
+func (w withCommonLabels) apply(opts *options) {
+	opts.commonLabels = w.commonLabels
+}
+
+// WithCommonLabels returns a LogOption that adds a set of string=string
+// labels (fields) to all structured log messages.
+func WithCommonLabels(commonLabels map[string]string) LogOption {
+	return withCommonLabels{commonLabels: commonLabels}
 }

@@ -12,3 +12,4 @@ tramp
 .idea
 .DS_Store
 
+sample.go.example

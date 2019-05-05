@@ -4,13 +4,16 @@ go 1.12
 
 require (
 	cloud.google.com/go v0.37.4
-	github.com/joonix/log v0.0.0-20190213172830-51a6cca1fed3
-	github.com/sirupsen/logrus v1.4.1
-	golang.org/x/crypto v0.0.0-20190424203555-c05e17bb3b2d // indirect
+	github.com/google/martian v2.1.0+incompatible
+	github.com/sirupsen/logrus v1.2.0
+	github.com/uber-go/zap v1.10.0
+	go.uber.org/atomic v1.4.0 // indirect
+	go.uber.org/multierr v1.1.0 // indirect
+	go.uber.org/zap v1.10.0
 	golang.org/x/net v0.0.0-20190424112056-4829fb13d2c6 // indirect
+	golang.org/x/sync v0.0.0-20190423024810-112230192c58 // indirect
 	golang.org/x/sys v0.0.0-20190425045458-9f0b1ff7b46a // indirect
 	golang.org/x/text v0.3.1 // indirect
-	golang.org/x/tools v0.0.0-20190425001055-9e44c1c40307 // indirect
 	google.golang.org/api v0.3.2
 	google.golang.org/genproto v0.0.0-20190404172233-64821d5d2107
 )
