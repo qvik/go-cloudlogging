@@ -1,4 +1,4 @@
-module github.com/qvik/cloudlogging
+module github.com/qvik/go-cloudlogging
 
 go 1.12
 
