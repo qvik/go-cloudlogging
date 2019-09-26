@@ -82,6 +82,7 @@ func NewLogger(opt ...LogOption) (*Logger, error) {
 	var zapLevel zap.AtomicLevel
 
 	if opts.useStackdriver {
+		stdLog.Print("Creating Stackdriver logging client")
 		client, logger, err := createStackdriverLogger(opts)
 		if err != nil {
 			return nil, err
