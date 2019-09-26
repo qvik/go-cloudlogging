@@ -29,6 +29,7 @@ func createZapLogger(opts options) (*zap.Logger, zap.AtomicLevel, error) {
 	}
 
 	logger, err := cfg.Build()
+
 	if err != nil {
 		return nil, atomicLevel, err
 	}
@@ -58,6 +59,24 @@ func levelToZapFlatLogFunc(level Level, logger *zap.SugaredLogger) logFunc {
 		return logger.Errorf
 	case Fatal:
 		return logger.Fatalf
+	default:
+		return nil
+	}
+}
+
+func levelToZapStructuredLogFunc(level Level,
+	logger *zap.SugaredLogger) logFunc {
+	switch level {
+	case Debug:
+		return logger.Debugw
+	case Info:
+		return logger.Infow
+	case Warning:
+		return logger.Warnw
+	case Error:
+		return logger.Errorw
+	case Fatal:
+		return logger.Fatalw
 	default:
 		return nil
 	}

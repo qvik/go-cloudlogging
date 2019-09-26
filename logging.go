@@ -4,6 +4,7 @@ package cloudlogging
 
 import (
 	"fmt"
+	stdLog "log"
 	"os"
 
 	stackdriver "cloud.google.com/go/logging"
@@ -12,7 +13,7 @@ import (
 	"google.golang.org/genproto/googleapis/api/monitoredres"
 )
 
-//Level is our log level type
+// Level is our log level type
 type Level int8
 
 // Log levels
@@ -65,7 +66,7 @@ type Logger struct {
 // NewLogger creates a new Logger instance using the given options.
 // The default log level is Info.
 func NewLogger(opt ...LogOption) (*Logger, error) {
-	opts := options{logLevel: Info}
+	opts := options{logLevel: Debug}
 
 	for _, o := range opt {
 		o.apply(&opts)
@@ -97,6 +98,8 @@ func NewLogger(opt ...LogOption) (*Logger, error) {
 
 		zapLogger = logger.Sugar()
 		zapLevel = zl
+
+		zapLogger.Debugf("Created ZAP logger.")
 	}
 
 	l := &Logger{
@@ -116,6 +119,16 @@ func NewLocalOnlyLogger() (*Logger, error) {
 	return NewLogger(WithLocal())
 }
 
+// MustNewLocalOnlyLogger creates a new local stdout only logger or panics.
+func MustNewLocalOnlyLogger() *Logger {
+	log, err := NewLocalOnlyLogger()
+	if err != nil {
+		stdLog.Panicf("failed to create logger: %v", err)
+	}
+
+	return log
+}
+
 // NewComputeEngineLogger returns a Logger suitable for use in Compute Engine
 // instance. Local logs are always written.
 // If the stackdriver flag is set to true, logs are written to
@@ -123,14 +136,30 @@ func NewLocalOnlyLogger() (*Logger, error) {
 // formatted using FluentD formatter, making it possible to combine this
 // with Stackdriver Logging Agent (https://cloud.google.com/logging/docs/agent/)
 // that will take care of writing the logs to Stackdriver.
-func NewComputeEngineLogger() (*Logger, error) {
+func NewComputeEngineLogger(projectID string) (*Logger, error) {
 	// See about using https://godoc.org/cloud.google.com/go/logging#CommonResource
 	// with values from:
 	//https://cloud.google.com/logging/docs/api/v2/resource-list#resource-types
 
-	//TODO
+	logID := "cloudfunctions.googleapis.com/cloud-functions"
+	opts := []LogOption{}
 
-	return nil, nil
+	// On GCE we can omit supplying a MonitoredResource - it will be
+	// autodetected:
+	// https://godoc.org/cloud.google.com/go/logging#CommonResource
+	opts = append(opts, WithStackdriver(projectID, "", logID, nil))
+
+	return NewLogger(opts...)
+}
+
+// MustNewComputeEngineLogger creates a new Compute Engine logger or panics.
+func MustNewComputeEngineLogger(projectID string) *Logger {
+	log, err := NewComputeEngineLogger(projectID)
+	if err != nil {
+		stdLog.Panicf("failed to create logger: %v", err)
+	}
+
+	return log
 }
 
 // NewCloudFunctionLogger returns a Logger suitable for use in Google
@@ -140,9 +169,48 @@ func NewCloudFunctionLogger() (*Logger, error) {
 	// with values from:
 	//https://cloud.google.com/logging/docs/api/v2/resource-list#resource-types
 
-	//TODO
+	logID := "cloudfunctions.googleapis.com/cloud-functions"
 
-	return nil, nil
+	projectID := os.Getenv("GCP_PROJECT")
+	if projectID == "" {
+		return nil, fmt.Errorf("env var GCP_PROJECT missing")
+	}
+
+	functionName := os.Getenv("FUNCTION_NAME")
+	if functionName == "" {
+		return nil, fmt.Errorf("env var FUNCTION_NAME missing")
+	}
+
+	functionRegion := os.Getenv("FUNCTION_REGION")
+	if functionName == "" {
+		return nil, fmt.Errorf("env var FUNCTION_REGION missing")
+	}
+
+	opts := []LogOption{}
+
+	// Create a monitored resource descriptor that will target GAE
+	monitoredRes := &monitoredres.MonitoredResource{
+		Type: "cloud_function",
+		Labels: map[string]string{
+			"project_id":    projectID,
+			"function_name": functionName,
+			"region":        functionRegion,
+		},
+	}
+
+	opts = append(opts, WithStackdriver(projectID, "", logID, monitoredRes))
+
+	return NewLogger(opts...)
+}
+
+// MustNewCloudFunctionLogger creates a new Cloud Function logger or panics.
+func MustNewCloudFunctionLogger() *Logger {
+	log, err := NewCloudFunctionLogger()
+	if err != nil {
+		stdLog.Panicf("failed to create logger: %v", err)
+	}
+
+	return log
 }
 
 // NewAppEngineLogger returns a Logger suitable for use in AppEngine.
@@ -188,9 +256,19 @@ func NewAppEngineLogger() (*Logger, error) {
 	return NewLogger(opts...)
 }
 
+// MustNewAppEngineLogger creates a new AppEngine logger or panics.
+func MustNewAppEngineLogger() *Logger {
+	log, err := NewAppEngineLogger()
+	if err != nil {
+		stdLog.Panicf("failed to create logger: %v", err)
+	}
+
+	return log
+}
+
 // SetLogLevel sets the log levels of the underlying logger interfaces.
 // Note that this operation is not mutexed and thus not inherently thread-safe.
-func (l *Logger) SetLogLevel(logLevel Level) {
+func (l *Logger) SetLogLevel(logLevel Level) *Logger {
 	l.logLevel = logLevel
 
 	if l.zapLogger != nil {
@@ -201,6 +279,8 @@ func (l *Logger) SetLogLevel(logLevel Level) {
 		}
 		l.zapLevel.SetLevel(zapLevel)
 	}
+
+	return l
 }
 
 // Close closes the logger and flushes the underlying loggers'
@@ -265,16 +345,48 @@ func (l *Logger) logImplf(level Level, format string, args ...interface{}) {
 }
 
 // Writes a structured log entry.
-func (l *Logger) logImpl(level Level, msg string,
+func (l *Logger) logImpl(level Level, payload interface{},
 	keysAndValues ...interface{}) {
 
-	//TODO
+	if len(keysAndValues)%2 != 0 {
+		stdLog.Panicf("must pass even number of keysAndValues")
+	}
+
+	// Emit Stackdriver logging - if enabled
+	if l.stackdriverLogger != nil {
+		severity := stackdriver.Default
+		if s, ok := levelToStackdriverSeverityMap[level]; ok {
+			severity = s
+		}
+
+		labels := map[string]string{}
+		for i := 0; i < len(keysAndValues); i += 2 {
+			key := fmt.Sprintf("%v", keysAndValues[i])
+			value := fmt.Sprintf("%v", keysAndValues[i+1])
+
+			labels[key] = value
+		}
+
+		l.stackdriverLogger.Log(stackdriver.Entry{
+			Payload:  payload,
+			Labels:   labels,
+			Severity: severity,
+		})
+	}
+
+	// Emit local logging - if enabled
+	if l.zapLogger != nil {
+		f := levelToZapStructuredLogFunc(level, l.zapLogger)
+		if f != nil {
+			f(fmt.Sprintf("%+v", payload), keysAndValues...)
+		}
+	}
 }
 
 // FLAT LOGGING
 
-// Tracef writes debug level logs - it exists to provide API compatibility
-// with some logging libraries.
+// Tracef writes debug level logs.
+// Compatibility alias for Debugf().
 func (l *Logger) Tracef(format string, args ...interface{}) {
 	l.logImplf(Debug, format, args...)
 }
@@ -284,8 +396,8 @@ func (l *Logger) Debugf(format string, args ...interface{}) {
 	l.logImplf(Debug, format, args...)
 }
 
-// Printf writes debug level logs - included for compatibility with
-// the standard "log" package.
+// Printf writes debug level logs.
+// Compatibility alias for Debugf().
 func (l *Logger) Printf(format string, args ...interface{}) {
 	l.logImplf(Debug, format, args...)
 }
@@ -317,9 +429,55 @@ func (l *Logger) Fatalf(format string, args ...interface{}) {
 	}
 }
 
+// Panicf writes fatal level logs and exits.
+// Compatibility alias for Fatalf().
+func (l *Logger) Panicf(format string, args ...interface{}) {
+	l.Fatalf(format, args...)
+}
+
 // STRUCTURED LOGGING
 
+//TODO add overloads that take arguments payload interface{}, map[string]interface{}
+
+// Trace writes a structured log entry using the debug level.
+func (l *Logger) Trace(payload interface{}, keysAndValues ...interface{}) {
+	l.logImpl(Debug, payload, keysAndValues...)
+}
+
 // Debug writes a structured log entry using the debug level.
-func (l *Logger) Debug(msg string, keysAndValues ...interface{}) {
-	l.logImpl(Debug, msg, keysAndValues)
+// Compatibility alias for Debug().
+func (l *Logger) Debug(payload interface{}, keysAndValues ...interface{}) {
+	l.logImpl(Debug, payload, keysAndValues...)
+}
+
+// Print writes a structured log entry using the debug level.
+// Compatibility alias for Debug().
+func (l *Logger) Print(payload interface{}, keysAndValues ...interface{}) {
+	l.logImpl(Debug, payload, keysAndValues...)
+}
+
+// Info writes a structured log entry using the info level.
+func (l *Logger) Info(payload interface{}, keysAndValues ...interface{}) {
+	l.logImpl(Info, payload, keysAndValues...)
+}
+
+// Warning writes a structured log entry using the warning level.
+func (l *Logger) Warning(payload interface{}, keysAndValues ...interface{}) {
+	l.logImpl(Warning, payload, keysAndValues...)
+}
+
+// Error writes a structured log entry using the error level.
+func (l *Logger) Error(payload interface{}, keysAndValues ...interface{}) {
+	l.logImpl(Error, payload, keysAndValues...)
+}
+
+// Fatal writes a structured log entry using the fatal level.
+func (l *Logger) Fatal(payload interface{}, keysAndValues ...interface{}) {
+	l.logImpl(Fatal, payload, keysAndValues...)
+}
+
+// Panic writes a structured log entry using the fatal level.
+// Compatibility alias for Fatal().
+func (l *Logger) Panic(payload interface{}, keysAndValues ...interface{}) {
+	l.logImpl(Fatal, payload, keysAndValues...)
 }
