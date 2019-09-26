@@ -2,6 +2,8 @@ package cloudlogging
 
 import (
 	"context"
+	"fmt"
+	"os"
 
 	stackdriver "cloud.google.com/go/logging"
 	"google.golang.org/api/option"
@@ -24,6 +26,11 @@ func createStackdriverLogger(opts options) (*stackdriver.Client,
 		opts.gcpProjectID, o...)
 	if err != nil {
 		return nil, nil, err
+	}
+
+	// Install an error handler
+	client.OnError = func(err error) {
+		fmt.Fprintf(os.Stderr, "Stackdriver error: %v", err)
 	}
 
 	loggeropts := []stackdriver.LoggerOption{}

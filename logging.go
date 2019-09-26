@@ -228,27 +228,10 @@ func NewAppEngineLogger() (*Logger, error) {
 			return nil, fmt.Errorf("env var GOOGLE_CLOUD_PROJECT missing")
 		}
 
-		service := os.Getenv("GAE_SERVICE")
-		if service == "" {
-			return nil, fmt.Errorf("env var GAE_SERVICE missing")
-		}
-
-		version := os.Getenv("GAE_VERSION")
-		if version == "" {
-			return nil, fmt.Errorf("env var GAE_VERSION missing")
-		}
-
-		// Create a monitored resource descriptor that will target GAE
-		monitoredRes := &monitoredres.MonitoredResource{
-			Type: "gae_app",
-			Labels: map[string]string{
-				"project_id": projectID,
-				"module_id":  service,
-				"version_id": version,
-			},
-		}
-
-		opts = append(opts, WithStackdriver(projectID, "", logID, monitoredRes))
+		// On GCE we can omit supplying a MonitoredResource - it will be
+		// autodetected:
+		// https://godoc.org/cloud.google.com/go/logging#CommonResource
+		opts = append(opts, WithStackdriver(projectID, "", logID, nil))
 	} else {
 		opts = append(opts, WithLocal())
 	}
@@ -436,8 +419,6 @@ func (l *Logger) Panicf(format string, args ...interface{}) {
 }
 
 // STRUCTURED LOGGING
-
-//TODO add overloads that take arguments payload interface{}, map[string]interface{}
 
 // Trace writes a structured log entry using the debug level.
 func (l *Logger) Trace(payload interface{}, keysAndValues ...interface{}) {
