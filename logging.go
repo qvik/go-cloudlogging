@@ -4,7 +4,7 @@ package cloudlogging
 
 import (
 	"fmt"
-	stdLog "log"
+	stdlog "log"
 	"os"
 
 	stackdriver "cloud.google.com/go/logging"
@@ -82,25 +82,30 @@ func NewLogger(opt ...LogOption) (*Logger, error) {
 	var zapLevel zap.AtomicLevel
 
 	if opts.useStackdriver {
-		stdLog.Print("Creating Stackdriver logging client")
+		stdlog.Printf("Creating Stackdriver logging client with projectID=%v, "+
+			"logID=%v, credentialsFile=%v, monitoredResource=%+v",
+			opts.gcpProjectID, opts.stackdriverLogID,
+			opts.credentialsFilePath, opts.stackDriverMonitoredResource)
+
 		client, logger, err := createStackdriverLogger(opts)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("failed to create Stackdriver log: %v", err)
 		}
+
 		stackdriverClient = client
 		stackdriverLogger = logger
 	}
 
 	if opts.useLocal {
+		stdlog.Printf("Creating local ZAP logger.")
+
 		logger, zl, err := createZapLogger(opts)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("failed to create Zap logger: %v", err)
 		}
 
 		zapLogger = logger.Sugar()
 		zapLevel = zl
-
-		zapLogger.Debugf("Created ZAP logger.")
 	}
 
 	l := &Logger{
@@ -110,6 +115,8 @@ func NewLogger(opt ...LogOption) (*Logger, error) {
 		zapLogger:         zapLogger,
 		zapLevel:          zapLevel,
 	}
+
+	stdlog.Printf("Created log wrapper: %+v", l)
 
 	return l, nil
 }
@@ -124,7 +131,7 @@ func NewLocalOnlyLogger() (*Logger, error) {
 func MustNewLocalOnlyLogger() *Logger {
 	log, err := NewLocalOnlyLogger()
 	if err != nil {
-		stdLog.Panicf("failed to create logger: %v", err)
+		stdlog.Panicf("failed to create logger: %v", err)
 	}
 
 	return log
@@ -157,7 +164,7 @@ func NewComputeEngineLogger(projectID string) (*Logger, error) {
 func MustNewComputeEngineLogger(projectID string) *Logger {
 	log, err := NewComputeEngineLogger(projectID)
 	if err != nil {
-		stdLog.Panicf("failed to create logger: %v", err)
+		stdlog.Panicf("failed to create logger: %v", err)
 	}
 
 	return log
@@ -208,7 +215,7 @@ func NewCloudFunctionLogger() (*Logger, error) {
 func MustNewCloudFunctionLogger() *Logger {
 	log, err := NewCloudFunctionLogger()
 	if err != nil {
-		stdLog.Panicf("failed to create logger: %v", err)
+		stdlog.Panicf("failed to create logger: %v", err)
 	}
 
 	return log
@@ -244,7 +251,7 @@ func NewAppEngineLogger() (*Logger, error) {
 func MustNewAppEngineLogger() *Logger {
 	log, err := NewAppEngineLogger()
 	if err != nil {
-		stdLog.Panicf("failed to create logger: %v", err)
+		stdlog.Panicf("failed to create logger: %v", err)
 	}
 
 	return log
@@ -306,12 +313,17 @@ func (l *Logger) logImplf(level Level, format string, args ...interface{}) {
 		return
 	}
 
+	stdlog.Printf("Emitting log msg '%v' at level %v",
+		fmt.Sprintf(format, args...), level)
+
 	// Emit Stackdriver logging - if enabled
 	if l.stackdriverLogger != nil {
 		severity := stackdriver.Default
 		if s, ok := levelToStackdriverSeverityMap[level]; ok {
 			severity = s
 		}
+
+		stdlog.Printf("-> Emitting to Stackdriver w/ severity %v", severity)
 
 		l.stackdriverLogger.Log(stackdriver.Entry{
 			Payload:  fmt.Sprintf(format, args...),
@@ -323,6 +335,8 @@ func (l *Logger) logImplf(level Level, format string, args ...interface{}) {
 	if l.zapLogger != nil {
 		f := levelToZapFlatLogFunc(level, l.zapLogger)
 		if f != nil {
+			stdlog.Printf("-> Emitting to Zap")
+
 			f(format, args...)
 		}
 	}
@@ -333,7 +347,7 @@ func (l *Logger) logImpl(level Level, payload interface{},
 	keysAndValues ...interface{}) {
 
 	if len(keysAndValues)%2 != 0 {
-		stdLog.Panicf("must pass even number of keysAndValues")
+		stdlog.Panicf("must pass even number of keysAndValues")
 	}
 
 	// Emit Stackdriver logging - if enabled
