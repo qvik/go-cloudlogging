@@ -2,8 +2,7 @@ package cloudlogging
 
 import (
 	"context"
-	"fmt"
-	"os"
+	stdlog "log"
 
 	stackdriver "cloud.google.com/go/logging"
 	"google.golang.org/api/option"
@@ -16,21 +15,21 @@ var (
 func createStackdriverLogger(opts options) (*stackdriver.Client,
 	*stackdriver.Logger, error) {
 
+	ctx := context.Background()
 	o := []option.ClientOption{}
 
 	if opts.credentialsFilePath != "" {
 		o = append(o, option.WithCredentialsFile(opts.credentialsFilePath))
 	}
 
-	client, err := stackdriver.NewClient(context.Background(),
-		opts.gcpProjectID, o...)
+	client, err := stackdriver.NewClient(ctx, opts.gcpProjectID, o...)
 	if err != nil {
 		return nil, nil, err
 	}
 
 	// Install an error handler
 	client.OnError = func(err error) {
-		fmt.Fprintf(os.Stderr, "Stackdriver error: %v", err)
+		stdlog.Printf("Stackdriver error: %v", err)
 	}
 
 	loggeropts := []stackdriver.LoggerOption{}
@@ -45,8 +44,7 @@ func createStackdriverLogger(opts options) (*stackdriver.Client,
 		Payload:  "Stackdriver logger created",
 		Severity: stackdriver.Info,
 	}); err != nil {
-		fmt.Fprintf(os.Stderr,
-			"failed to initialize Stackdriver logging: %v", err)
+		stdlog.Printf("failed to initialize Stackdriver logging: %v", err)
 	}
 
 	return client, logger, nil

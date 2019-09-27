@@ -144,12 +144,11 @@ func MustNewLocalOnlyLogger() *Logger {
 // formatted using FluentD formatter, making it possible to combine this
 // with Stackdriver Logging Agent (https://cloud.google.com/logging/docs/agent/)
 // that will take care of writing the logs to Stackdriver.
-func NewComputeEngineLogger(projectID string) (*Logger, error) {
+func NewComputeEngineLogger(projectID, logID string) (*Logger, error) {
 	// See about using https://godoc.org/cloud.google.com/go/logging#CommonResource
 	// with values from:
 	//https://cloud.google.com/logging/docs/api/v2/resource-list#resource-types
 
-	logID := "cloudfunctions.googleapis.com/cloud-functions"
 	opts := []LogOption{}
 
 	// On GCE we can omit supplying a MonitoredResource - it will be
@@ -161,8 +160,8 @@ func NewComputeEngineLogger(projectID string) (*Logger, error) {
 }
 
 // MustNewComputeEngineLogger creates a new Compute Engine logger or panics.
-func MustNewComputeEngineLogger(projectID string) *Logger {
-	log, err := NewComputeEngineLogger(projectID)
+func MustNewComputeEngineLogger(projectID, logID string) *Logger {
+	log, err := NewComputeEngineLogger(projectID, logID)
 	if err != nil {
 		stdlog.Panicf("failed to create logger: %v", err)
 	}
@@ -224,11 +223,17 @@ func MustNewCloudFunctionLogger() *Logger {
 // NewAppEngineLogger returns a Logger suitable for use in AppEngine.
 // On local dev server it uses the local stdout -logger and in the cloud it
 // uses the Stackdriver logger.
-func NewAppEngineLogger() (*Logger, error) {
+// Specify empty string to logID parameter to use default value of
+// appengine.googleapis.com/request_log.
+func NewAppEngineLogger(logID string) (*Logger, error) {
 	opts := []LogOption{}
 
+	if logID == "" {
+		logID = "appengine.googleapis.com/request_log"
+	}
 	// We'll write to the default GAE request log
-	logID := "appengine.googleapis.com/request_log"
+	// logID := "appengine.googleapis.com/request_log"
+	// logID := "my-gae-log"
 
 	if os.Getenv("NODE_ENV") == "production" {
 		projectID := os.Getenv("GOOGLE_CLOUD_PROJECT")
@@ -248,8 +253,10 @@ func NewAppEngineLogger() (*Logger, error) {
 }
 
 // MustNewAppEngineLogger creates a new AppEngine logger or panics.
-func MustNewAppEngineLogger() *Logger {
-	log, err := NewAppEngineLogger()
+// Specify empty string to logID parameter to use default value of
+// appengine.googleapis.com/request_log.
+func MustNewAppEngineLogger(logID string) *Logger {
+	log, err := NewAppEngineLogger(logID)
 	if err != nil {
 		stdlog.Panicf("failed to create logger: %v", err)
 	}
