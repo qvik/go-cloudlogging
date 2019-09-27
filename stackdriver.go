@@ -2,9 +2,12 @@ package cloudlogging
 
 import (
 	"context"
+	"fmt"
 	stdlog "log"
 
+	"cloud.google.com/go/logging"
 	stackdriver "cloud.google.com/go/logging"
+	googleoauth2 "golang.org/x/oauth2/google"
 	"google.golang.org/api/option"
 )
 
@@ -20,6 +23,14 @@ func createStackdriverLogger(opts options) (*stackdriver.Client,
 
 	if opts.credentialsFilePath != "" {
 		o = append(o, option.WithCredentialsFile(opts.credentialsFilePath))
+	} else {
+		//TODO is this a good place to put this?
+		tokenSource, err := googleoauth2.DefaultTokenSource(context.Background(), logging.WriteScope)
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to create default token source: %v", err)
+		}
+
+		o = append(o, option.WithTokenSource(tokenSource))
 	}
 
 	client, err := stackdriver.NewClient(ctx, opts.gcpProjectID, o...)

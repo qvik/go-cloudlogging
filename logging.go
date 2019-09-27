@@ -34,9 +34,8 @@ const (
 // reasoning here being that standard Logger calls should not suffer a
 // performance hit from locking.
 //
-// Logger uses the logrus (https://github.com/sirupsen/logrus)
-// library for local logging. It can be either
-// configured to emit FluentD (with Kubernetes compatibility) or plain logs.
+// Logger uses the Zap (https://github.com/uber-go/zap)
+// library for local logging.
 //
 // Logger uses Stackdriver Go library for cloud logging.
 //
