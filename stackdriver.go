@@ -5,9 +5,7 @@ import (
 	"fmt"
 	stdlog "log"
 
-	"cloud.google.com/go/logging"
 	stackdriver "cloud.google.com/go/logging"
-	googleoauth2 "golang.org/x/oauth2/google"
 	"google.golang.org/api/option"
 )
 
@@ -24,7 +22,7 @@ func createStackdriverLogger(opts options) (*stackdriver.Client,
 	if opts.credentialsFilePath != "" {
 		//TODO use WriteScope here too
 		o = append(o, option.WithCredentialsFile(opts.credentialsFilePath))
-	} else {
+	} /*else {
 		//TODO is this a good place to put this?
 		stdlog.Printf("Using Default token source for authentication")
 		tokenSource, err := googleoauth2.DefaultTokenSource(ctx, logging.WriteScope)
@@ -33,7 +31,7 @@ func createStackdriverLogger(opts options) (*stackdriver.Client,
 		}
 
 		o = append(o, option.WithTokenSource(tokenSource))
-	}
+	}*/
 
 	// See:
 	// https://godoc.org/cloud.google.com/go/logging#NewClient

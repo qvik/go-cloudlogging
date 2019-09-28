@@ -115,8 +115,6 @@ func NewLogger(opt ...LogOption) (*Logger, error) {
 		zapLevel:          zapLevel,
 	}
 
-	stdlog.Printf("Created log wrapper: %+v", l)
-
 	return l, nil
 }
 
@@ -333,17 +331,12 @@ func (l *Logger) logImplf(level Level, format string, args ...interface{}) {
 		return
 	}
 
-	stdlog.Printf("Emitting log msg '%v' at level %v",
-		fmt.Sprintf(format, args...), level)
-
 	// Emit Stackdriver logging - if enabled
 	if l.stackdriverLogger != nil {
 		severity := stackdriver.Default
 		if s, ok := levelToStackdriverSeverityMap[level]; ok {
 			severity = s
 		}
-
-		stdlog.Printf("-> Emitting to Stackdriver w/ severity %v", severity)
 
 		l.stackdriverLogger.Log(stackdriver.Entry{
 			Payload:  fmt.Sprintf(format, args...),
@@ -355,8 +348,6 @@ func (l *Logger) logImplf(level Level, format string, args ...interface{}) {
 	if l.zapLogger != nil {
 		f := levelToZapFlatLogFunc(level, l.zapLogger)
 		if f != nil {
-			stdlog.Printf("-> Emitting to Zap")
-
 			f(format, args...)
 		}
 	}
