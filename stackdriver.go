@@ -22,10 +22,12 @@ func createStackdriverLogger(opts options) (*stackdriver.Client,
 	o := []option.ClientOption{}
 
 	if opts.credentialsFilePath != "" {
+		//TODO use WriteScope here too
 		o = append(o, option.WithCredentialsFile(opts.credentialsFilePath))
 	} else {
 		//TODO is this a good place to put this?
-		tokenSource, err := googleoauth2.DefaultTokenSource(context.Background(), logging.WriteScope)
+		stdlog.Printf("Using Default token source for authentication")
+		tokenSource, err := googleoauth2.DefaultTokenSource(ctx, logging.WriteScope)
 		if err != nil {
 			return nil, nil, fmt.Errorf("failed to create default token source: %v", err)
 		}
@@ -33,9 +35,12 @@ func createStackdriverLogger(opts options) (*stackdriver.Client,
 		o = append(o, option.WithTokenSource(tokenSource))
 	}
 
-	client, err := stackdriver.NewClient(ctx, opts.gcpProjectID, o...)
+	// See:
+	// https://godoc.org/cloud.google.com/go/logging#NewClient
+	parent := fmt.Sprintf("projects/%v", opts.gcpProjectID)
+	client, err := stackdriver.NewClient(ctx, parent, o...)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, fmt.Errorf("failed to create stackdriver client: %v", err)
 	}
 
 	// Install an error handler

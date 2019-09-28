@@ -194,7 +194,7 @@ func NewCloudFunctionLogger() (*Logger, error) {
 
 	opts := []LogOption{}
 
-	// Create a monitored resource descriptor that will target GAE
+	// Create a monitored resource descriptor that will target Cloud Functions
 	monitoredRes := &monitoredres.MonitoredResource{
 		Type: "cloud_function",
 		Labels: map[string]string{
@@ -230,9 +230,6 @@ func NewAppEngineLogger(logID string) (*Logger, error) {
 	if logID == "" {
 		logID = "appengine.googleapis.com/request_log"
 	}
-	// We'll write to the default GAE request log
-	// logID := "appengine.googleapis.com/request_log"
-	// logID := "my-gae-log"
 
 	if os.Getenv("NODE_ENV") == "production" {
 		projectID := os.Getenv("GOOGLE_CLOUD_PROJECT")
@@ -240,10 +237,27 @@ func NewAppEngineLogger(logID string) (*Logger, error) {
 			return nil, fmt.Errorf("env var GOOGLE_CLOUD_PROJECT missing")
 		}
 
-		// On GCE we can omit supplying a MonitoredResource - it will be
-		// autodetected:
-		// https://godoc.org/cloud.google.com/go/logging#CommonResource
-		opts = append(opts, WithStackdriver(projectID, "", logID, nil))
+		serviceID := os.Getenv("GAE_SERVICE")
+		if serviceID == "" {
+			return nil, fmt.Errorf("env var GAE_SERVICE missing")
+		}
+
+		versionID := os.Getenv("GAE_VERSION")
+		if versionID == "" {
+			return nil, fmt.Errorf("env var GAE_VERSION missing")
+		}
+
+		// Create a monitored resource descriptor that will target GAE
+		monitoredRes := &monitoredres.MonitoredResource{
+			Type: "gae_app",
+			Labels: map[string]string{
+				"project_id": projectID,
+				"module_id":  serviceID,
+				"version_id": versionID,
+			},
+		}
+
+		opts = append(opts, WithStackdriver(projectID, "", logID, monitoredRes))
 	} else {
 		opts = append(opts, WithLocal())
 	}
