@@ -54,12 +54,11 @@ func createStackdriverLogger(opts options) (*stackdriver.Client,
 
 	logger := client.Logger(opts.stackdriverLogID, loggeropts...)
 
-	if err := logger.LogSync(context.Background(), stackdriver.Entry{
+	// Emit a log entry for testing
+	logger.Log(stackdriver.Entry{
 		Payload:  "Stackdriver logger created",
 		Severity: stackdriver.Info,
-	}); err != nil {
-		stdlog.Printf("failed to initialize Stackdriver logging: %v", err)
-	}
+	})
 
 	return client, logger, nil
 }
