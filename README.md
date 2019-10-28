@@ -2,6 +2,8 @@
 
 This module provides a log wrapper that is intended to handle logging in cloud-based backend environment. It can be configured to use a local logger or a over-the-network cloud logging library. Currently the only supported cloud logger is Stackdriver. For local logging purposes, the very efficient Zap logging library is used.
 
+The library is intended to be used with Go 1.10+ with module support but does not require that.
+
 The module provides convenience constructor methods for various possible deployments Google Cloud Platform. Similar support for AWS is planned and pull requests for such are appreciated.
 
 ## Changelog 
@@ -9,6 +11,12 @@ The module provides convenience constructor methods for various possible deploym
 * 0.0.11: Improved documentation.
 
 ## Usage
+
+Install the dependency:
+
+```sh
+go get -u github.com/qvik/go-cloudlogging
+```
 
 Import the library and define a logger variable:
 
