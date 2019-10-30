@@ -168,7 +168,7 @@ func NewCloudFunctionLogger(args ...string) (*Logger, error) {
 	//https://cloud.google.com/logging/docs/api/v2/resource-list#resource-types
 
 	logID := "cloudfunctions.googleapis.com/cloud-functions"
-	if arg0, ok := getArg(0, args...); ok {
+	if arg0, ok := getArg(0, args...); ok && arg0 != "" {
 		logID = arg0
 	}
 
@@ -227,7 +227,7 @@ func NewAppEngineLogger(args ...string) (*Logger, error) {
 	opts := []LogOption{}
 
 	logID := "appengine.googleapis.com/request_log"
-	if arg0, ok := getArg(0, args...); ok {
+	if arg0, ok := getArg(0, args...); ok && arg0 != "" {
 		logID = arg0
 	}
 
