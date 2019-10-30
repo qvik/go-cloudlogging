@@ -12,7 +12,7 @@ func getArg(n int, args ...string) (string, bool) {
 		return "", false
 	}
 
-	if len(args) > (n - 1) {
+	if len(args) > n {
 		return args[n], true
 	}
 
