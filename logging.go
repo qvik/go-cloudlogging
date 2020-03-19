@@ -60,6 +60,45 @@ type Logger struct {
 
 	// Stackdriver logger
 	stackdriverLogger *stackdriver.Logger
+
+	// Default log parameters. These are added to every structured log message
+	// in addition to the parameters issued in the actual logging call.
+	// Notice that this only applies to structured logging
+	// and not the formatted logging (eg. Debug(), but not Debugf()).
+	// The format is: key1, value1, key2, value2, ...
+	defaultKeysAndValues []interface{}
+
+	// Base ("root") logger to use for actual low-level logging if defined.
+	// If it is defined, all logging calls are forwarded to it, but all
+	// structured logging calls use the defaultKeysAndValues defined
+	// by the current instance.
+	baseLog *Logger
+}
+
+// WithAdditionalKeysAndValues creates a new logger that uses the current
+// logger as its base logger (all logging calls will be forwarded to the base
+// logger). Making changes to the base logger will be reflected in any
+// calls to the new logger. Additional keys and values may be added for
+// structured logging purposes.
+// Panics if number of elements in keysAndValues is not even.
+func (l *Logger) WithAdditionalKeysAndValues(
+	keysAndValues ...interface{}) *Logger {
+
+	if len(keysAndValues)%2 != 0 {
+		stdlog.Panicf("must pass even number of keysAndValues")
+	}
+
+	// Find the "root" base logger
+	base := l
+	for base.baseLog != nil {
+		base = base.baseLog
+	}
+
+	newLogger := &Logger{baseLog: base}
+	newLogger.defaultKeysAndValues =
+		append(base.defaultKeysAndValues, keysAndValues...)
+
+	return newLogger
 }
 
 // NewLogger creates a new Logger instance using the given options.
@@ -297,6 +336,20 @@ func (l *Logger) SetLogLevel(logLevel Level) *Logger {
 	return l
 }
 
+// SetDefaultKeysAndValues sets the set of default structured logging
+// keys and values added to every (structured) logging call.
+// Format is: key1, value1, key2, value2, ..
+// Panics if number of elements in keysAndValues is not even.
+func (l *Logger) SetDefaultKeysAndValues(
+	keysAndValues ...interface{}) {
+
+	if len(keysAndValues)%2 != 0 {
+		stdlog.Panicf("must pass even number of keysAndValues")
+	}
+
+	l.defaultKeysAndValues = keysAndValues
+}
+
 // Close closes the logger and flushes the underlying loggers'
 // buffers. Returns error if there are errors.
 func (l *Logger) Close() error {
@@ -332,26 +385,32 @@ func (l *Logger) Flush() error {
 
 // Writes a flat log entry.
 func (l *Logger) logImplf(level Level, format string, args ...interface{}) {
-	if level < l.logLevel {
+	// Use base logger if it is defined
+	log := l
+	if l.baseLog != nil {
+		log = l.baseLog
+	}
+
+	if level < log.logLevel {
 		return
 	}
 
 	// Emit Stackdriver logging - if enabled
-	if l.stackdriverLogger != nil {
+	if log.stackdriverLogger != nil {
 		severity := stackdriver.Default
 		if s, ok := levelToStackdriverSeverityMap[level]; ok {
 			severity = s
 		}
 
-		l.stackdriverLogger.Log(stackdriver.Entry{
+		log.stackdriverLogger.Log(stackdriver.Entry{
 			Payload:  fmt.Sprintf(format, args...),
 			Severity: severity,
 		})
 	}
 
 	// Emit local logging - if enabled
-	if l.zapLogger != nil {
-		f := levelToZapFlatLogFunc(level, l.zapLogger)
+	if log.zapLogger != nil {
+		f := levelToZapFlatLogFunc(level, log.zapLogger)
 		if f != nil {
 			f(format, args...)
 		}
@@ -366,22 +425,39 @@ func (l *Logger) logImpl(level Level, payload interface{},
 		stdlog.Panicf("must pass even number of keysAndValues")
 	}
 
+	// Use base logger if it is defined
+	log := l
+	if l.baseLog != nil {
+		log = l.baseLog
+	}
+
 	// Emit Stackdriver logging - if enabled
-	if l.stackdriverLogger != nil {
+	if log.stackdriverLogger != nil {
 		severity := stackdriver.Default
 		if s, ok := levelToStackdriverSeverityMap[level]; ok {
 			severity = s
 		}
 
+		// Create the labels map from the param keys and values
 		labels := map[string]string{}
 		for i := 0; i < len(keysAndValues); i += 2 {
 			key := fmt.Sprintf("%v", keysAndValues[i])
-			value := fmt.Sprintf("%v", keysAndValues[i+1])
+			value := fmt.Sprintf("%+v", keysAndValues[i+1])
 
 			labels[key] = value
 		}
 
-		l.stackdriverLogger.Log(stackdriver.Entry{
+		// Add the default set of param keys and values.
+		// Note that here we want to use l.defaultKeysAndValues
+		// instead of log.defaultKeysAndValues.
+		for i := 0; i < len(l.defaultKeysAndValues); i += 2 {
+			key := fmt.Sprintf("%v", l.defaultKeysAndValues[i])
+			value := fmt.Sprintf("%+v", l.defaultKeysAndValues[i+1])
+
+			labels[key] = value
+		}
+
+		log.stackdriverLogger.Log(stackdriver.Entry{
 			Payload:  payload,
 			Labels:   labels,
 			Severity: severity,
@@ -389,10 +465,14 @@ func (l *Logger) logImpl(level Level, payload interface{},
 	}
 
 	// Emit local logging - if enabled
-	if l.zapLogger != nil {
-		f := levelToZapStructuredLogFunc(level, l.zapLogger)
+	if log.zapLogger != nil {
+		f := levelToZapStructuredLogFunc(level, log.zapLogger)
 		if f != nil {
-			f(fmt.Sprintf("%+v", payload), keysAndValues...)
+			// Add the default set of param keys and values.
+			// Note that here we want to use l.defaultKeysAndValues
+			// instead of log.defaultKeysAndValues.
+			params := append(l.defaultKeysAndValues, keysAndValues...)
+			f(fmt.Sprintf("%+v", payload), params...)
 		}
 	}
 }

@@ -3,17 +3,16 @@ module github.com/qvik/go-cloudlogging
 go 1.12
 
 require (
-	cloud.google.com/go v0.37.4
+	cloud.google.com/go v0.55.0
+	cloud.google.com/go/logging v1.0.0
+	github.com/apache/thrift v0.12.0 // indirect
 	github.com/google/martian v2.1.0+incompatible
+	github.com/hashicorp/golang-lru v0.5.4 // indirect
+	github.com/openzipkin/zipkin-go v0.1.6 // indirect
+	github.com/prometheus/client_golang v0.9.3-0.20190127221311-3c4408c8b829 // indirect
 	github.com/uber-go/zap v1.10.0
-	go.uber.org/atomic v1.4.0 // indirect
-	go.uber.org/multierr v1.1.0 // indirect
-	go.uber.org/zap v1.10.0
-	golang.org/x/net v0.0.0-20190424112056-4829fb13d2c6 // indirect
-	golang.org/x/oauth2 v0.0.0-20190226205417-e64efc72b421
-	golang.org/x/sync v0.0.0-20190423024810-112230192c58 // indirect
-	golang.org/x/sys v0.0.0-20190425045458-9f0b1ff7b46a // indirect
-	golang.org/x/text v0.3.1 // indirect
-	google.golang.org/api v0.3.2
-	google.golang.org/genproto v0.0.0-20190404172233-64821d5d2107
+	go.uber.org/zap v1.14.1
+	golang.org/x/oauth2 v0.0.0-20200107190931-bf48bf16ab8d
+	google.golang.org/api v0.20.0
+	google.golang.org/genproto v0.0.0-20200318110522-7735f76e9fa5
 )

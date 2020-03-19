@@ -7,7 +7,8 @@ import (
 	"testing"
 )
 
-// To run the tests, run:  go test -v github.com/qvik/cloudlogging
+// To run the tests, run:
+// go test -v .
 
 // captureStdout captures the stdout output of a function.
 func captureStdout(f func()) string {
@@ -72,36 +73,76 @@ func TestLocalLogger(t *testing.T) {
 	}
 }
 
-func TestAppEngine(t *testing.T) {
-	// Simulate app engine production env
-	os.Setenv("NODE_ENV", "production")
-	os.Setenv("GOOGLE_CLOUD_PROJECT", "test-does-not-exist")
-	os.Setenv("GAE_SERVICE", "default")
-	os.Setenv("GAE_VERSION", "test-does-not-exist")
+func TestSetDefaultKeysAndValues(t *testing.T) {
+	v := []interface{}{"key1", "value1", "key2", "value2"}
+	log := MustNewLocalOnlyLogger()
+	log.SetDefaultKeysAndValues(v...)
 
-	log, err := NewAppEngineLogger()
-	if err != nil {
-		t.Fatalf("failed to create logger: %v", err)
+	for i, x := range log.defaultKeysAndValues {
+		if x != v[i] {
+			t.Errorf("unexpected key/value: %v", x)
+		}
+	}
+}
+
+func TestWithAdditionalKeysAndValues(t *testing.T) {
+	v1 := []interface{}{"key1", "value1", "key2", false}
+	v2 := []interface{}{"key3", 123}
+
+	baseLog := MustNewLocalOnlyLogger()
+	baseLog.SetDefaultKeysAndValues(v1...)
+
+	log := baseLog.WithAdditionalKeysAndValues(v2...)
+
+	if log.baseLog != baseLog {
+		t.Errorf("invalid baseLog")
 	}
 
-	log.SetLogLevel(Debug)
+	// Check that base logger has not been affected
+	if len(v1) != len(baseLog.defaultKeysAndValues) {
+		t.Errorf("mismatching param array lengths: %v vs %v",
+			len(v1), len(baseLog.defaultKeysAndValues))
+	}
+	for i, x := range baseLog.defaultKeysAndValues {
+		if x != v1[i] {
+			t.Errorf("unexpected key/value: %v", x)
+		}
+	}
 
-	log.Infof("Hello, world")
+	v := append(v1, v2...)
+	if len(v) != len(log.defaultKeysAndValues) {
+		t.Errorf("mismatching param array lengths: %v vs %v",
+			len(v), len(log.defaultKeysAndValues))
+	}
 
-	if err := log.Flush(); err == nil {
-		t.Errorf("flush must fail here!")
+	for i, x := range log.defaultKeysAndValues {
+		if x != v[i] {
+			t.Errorf("unexpected key/value: %v", x)
+		}
 	}
 }
 
 // GODOC EXAMPLES
 
-func ExampleDebug() {
+func ExampleLogger_Debug() {
 	log, _ := NewLocalOnlyLogger()
 	log.Debug("Debug log message", "label1", 1, "label2", 2)
 }
 
-func ExampleDebugf() {
+func ExampleLogger_Debugf() {
 	log, _ := NewLocalOnlyLogger()
 	myMsg := "message"
 	log.Debugf("Debug with msg: %v", myMsg)
+}
+
+func ExampleLogger_WithAdditionalKeysAndValues_output() {
+	baseLog := MustNewLocalOnlyLogger()
+	baseLog.SetDefaultKeysAndValues("key1", "value1")
+
+	// Create a "sub" logger that inherits the default keys and values from
+	// its defined baselogger (baseLog)
+	subLog := baseLog.WithAdditionalKeysAndValues("key2", "value2")
+	subLog.Debug("Sublog debug message", "label", "value")
+
+	// Output: Sublog debug message, {key1: value1, key2: value2, label: value}
 }

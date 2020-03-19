@@ -10,6 +10,7 @@ The module provides convenience constructor methods for various possible deploym
 
 ## Changelog 
 
+* 0.0.15: Added default parameters for structured logging
 * 0.0.13: Argument handling bugfix, added GoDoc reference to README
 * 0.0.11: Improved documentation.
 
@@ -89,7 +90,7 @@ The library is distributed with the MIT License.
 Contributions to this library are welcomed. Any contributions have to meet the following criteria:
 
 * Meaningfulness. Discuss whether what you are about to contribute indeed belongs to this library in the first place before submitting a pull request.
-* Code style. Use gofmt and golint and you cannot go wrong with this.
+* Code style. Use gofmt and golint and you cannot go wrong with this. Generally do not exceed a line length of 80 characters.
 * Testing. Try and include tests for your code.
 
 ## Contact
