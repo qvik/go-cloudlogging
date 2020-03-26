@@ -20,15 +20,14 @@ func createZapLogger(opts options) (*zap.Logger, *zap.Config, error) {
 	}
 	atomicLevel := zap.NewAtomicLevelAt(zapLevel)
 
-	outputPaths := []string{"stdout"}
-	errorOutputPaths := []string{"stderr"}
-
-	if opts.zapOutputPath != "" {
-		outputPaths = []string{opts.zapOutputPath}
+	outputPaths := opts.outputPaths
+	if len(outputPaths) == 0 {
+		outputPaths = []string{"stdout"}
 	}
 
-	if opts.zapErrorOutputPath != "" {
-		errorOutputPaths = []string{opts.zapErrorOutputPath}
+	errorOutputPaths := opts.errorOutputPaths
+	if len(errorOutputPaths) == 0 {
+		errorOutputPaths = []string{"stderr"}
 	}
 
 	cfg := &zap.Config{

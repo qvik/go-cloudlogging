@@ -101,7 +101,7 @@ func (l *Logger) WithAdditionalKeysAndValues(
 }
 
 // NewLogger creates a new Logger instance using the given options.
-// The default log level is Info.
+// The default log level is Debug.
 func NewLogger(opt ...LogOption) (*Logger, error) {
 	opts := options{logLevel: Debug}
 
@@ -149,6 +149,18 @@ func NewLogger(opt ...LogOption) (*Logger, error) {
 	}
 
 	return l, nil
+}
+
+// MustNewLogger creates a new Logger instance using the given options.
+// The default log level is Debug.
+// Panics if logger creation fails.
+func MustNewLogger(opt ...LogOption) *Logger {
+	logger, err := NewLogger(opt...)
+	if err != nil {
+		stdlog.Fatalf("failed to create logger: %v", err)
+	}
+
+	return logger
 }
 
 // SetLogLevel sets the log levels of the underlying logger interfaces.
