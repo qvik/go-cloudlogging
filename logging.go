@@ -8,9 +8,7 @@ import (
 	"os"
 
 	stackdriver "cloud.google.com/go/logging"
-	zap "go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
-	"google.golang.org/genproto/googleapis/api/monitoredres"
+	"go.uber.org/zap"
 )
 
 // Level is our log level type
@@ -50,10 +48,11 @@ type Logger struct {
 	logLevel Level
 
 	// Zap logger
+	zapConfig *zap.Config
 	zapLogger *zap.SugaredLogger
 
 	// Zap atomic logging level handle
-	zapLevel zap.AtomicLevel
+	// zapLevel zap.AtomicLevel
 
 	// Stackdriver client
 	stackdriverClient *stackdriver.Client
@@ -116,8 +115,8 @@ func NewLogger(opt ...LogOption) (*Logger, error) {
 
 	var stackdriverClient *stackdriver.Client
 	var stackdriverLogger *stackdriver.Logger
+	var zapConfig *zap.Config
 	var zapLogger *zap.SugaredLogger
-	var zapLevel zap.AtomicLevel
 
 	if opts.useStackdriver {
 		client, logger, err := createStackdriverLogger(opts)
@@ -129,194 +128,27 @@ func NewLogger(opt ...LogOption) (*Logger, error) {
 		stackdriverLogger = logger
 	}
 
-	if opts.useLocal {
+	if opts.useZap {
 		stdlog.Printf("Creating local ZAP logger.")
 
-		logger, zl, err := createZapLogger(opts)
+		logger, config, err := createZapLogger(opts)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create Zap logger: %v", err)
 		}
 
+		zapConfig = config
 		zapLogger = logger.Sugar()
-		zapLevel = zl
 	}
 
 	l := &Logger{
 		logLevel:          opts.logLevel,
 		stackdriverClient: stackdriverClient,
 		stackdriverLogger: stackdriverLogger,
+		zapConfig:         zapConfig,
 		zapLogger:         zapLogger,
-		zapLevel:          zapLevel,
 	}
 
 	return l, nil
-}
-
-// NewLocalOnlyLogger returns a logger that only logs to the local
-// standard output.
-func NewLocalOnlyLogger() (*Logger, error) {
-	return NewLogger(WithLocal())
-}
-
-// MustNewLocalOnlyLogger creates a new local stdout only logger or panics.
-func MustNewLocalOnlyLogger() *Logger {
-	log, err := NewLocalOnlyLogger()
-	if err != nil {
-		stdlog.Panicf("failed to create logger: %v", err)
-	}
-
-	return log
-}
-
-// NewComputeEngineLogger returns a Logger suitable for use in Google Compute Engine
-// instance as well as Google Kubernetes Engine. The returned logger only logs via Stackdriver.
-func NewComputeEngineLogger(projectID, logID string) (*Logger, error) {
-	// See about using https://godoc.org/cloud.google.com/go/logging#CommonResource
-	// with values from:
-	//https://cloud.google.com/logging/docs/api/v2/resource-list#resource-types
-
-	opts := []LogOption{}
-
-	// On GCE we can omit supplying a MonitoredResource - it will be
-	// autodetected:
-	// https://godoc.org/cloud.google.com/go/logging#CommonResource
-	opts = append(opts, WithStackdriver(projectID, "", logID, nil))
-
-	return NewLogger(opts...)
-}
-
-// MustNewComputeEngineLogger returns a Logger suitable for use in Google Compute Engine
-// instance as well as Google Kubernetes Engine. The returned logger only logs via Stackdriver.
-// Panics on errors.
-func MustNewComputeEngineLogger(projectID, logID string) *Logger {
-	log, err := NewComputeEngineLogger(projectID, logID)
-	if err != nil {
-		stdlog.Panicf("failed to create logger: %v", err)
-	}
-
-	return log
-}
-
-// NewCloudFunctionLogger returns a Logger suitable for use in Google
-// Cloud Functions. It will emit the logs using the Stackdriver API.
-// The first value of args is the logID. If omitted or empty string is given,
-// the default value of "cloudfunctions.googleapis.com/cloud-functions" is used.
-func NewCloudFunctionLogger(args ...string) (*Logger, error) {
-	// See about using https://godoc.org/cloud.google.com/go/logging#CommonResource
-	// with values from:
-	//https://cloud.google.com/logging/docs/api/v2/resource-list#resource-types
-
-	logID := "cloudfunctions.googleapis.com/cloud-functions"
-	if arg0, ok := getArg(0, args...); ok && arg0 != "" {
-		logID = arg0
-	}
-
-	projectID := os.Getenv("GCP_PROJECT")
-	if projectID == "" {
-		return nil, fmt.Errorf("env var GCP_PROJECT missing")
-	}
-
-	functionName := os.Getenv("FUNCTION_NAME")
-	if functionName == "" {
-		return nil, fmt.Errorf("env var FUNCTION_NAME missing")
-	}
-
-	functionRegion := os.Getenv("FUNCTION_REGION")
-	if functionName == "" {
-		return nil, fmt.Errorf("env var FUNCTION_REGION missing")
-	}
-
-	opts := []LogOption{}
-
-	// Create a monitored resource descriptor that will target Cloud Functions
-	monitoredRes := &monitoredres.MonitoredResource{
-		Type: "cloud_function",
-		Labels: map[string]string{
-			"project_id":    projectID,
-			"function_name": functionName,
-			"region":        functionRegion,
-		},
-	}
-
-	opts = append(opts, WithStackdriver(projectID, "", logID, monitoredRes))
-
-	return NewLogger(opts...)
-}
-
-// MustNewCloudFunctionLogger returns a Logger suitable for use in Google
-// Cloud Functions. It will emit the logs using the Stackdriver API.
-// The first value of args is the logID. If omitted or empty string is given,
-// the default value of "cloudfunctions.googleapis.com/cloud-functions" is used.
-// Panics on errors.
-func MustNewCloudFunctionLogger(args ...string) *Logger {
-	log, err := NewCloudFunctionLogger(args...)
-	if err != nil {
-		stdlog.Panicf("failed to create logger: %v", err)
-	}
-
-	return log
-}
-
-// NewAppEngineLogger returns a Logger suitable for use in AppEngine.
-// On local dev server it uses the local stdout -logger and in the cloud it
-// uses the Stackdriver logger.
-// The first value of args is the logID. If omitted or empty string is given,
-// the default value of "appengine.googleapis.com/request_log" is used.
-func NewAppEngineLogger(args ...string) (*Logger, error) {
-	opts := []LogOption{}
-
-	logID := "appengine.googleapis.com/request_log"
-	if arg0, ok := getArg(0, args...); ok && arg0 != "" {
-		logID = arg0
-	}
-
-	if os.Getenv("NODE_ENV") == "production" {
-		projectID := os.Getenv("GOOGLE_CLOUD_PROJECT")
-		if projectID == "" {
-			return nil, fmt.Errorf("env var GOOGLE_CLOUD_PROJECT missing")
-		}
-
-		serviceID := os.Getenv("GAE_SERVICE")
-		if serviceID == "" {
-			return nil, fmt.Errorf("env var GAE_SERVICE missing")
-		}
-
-		versionID := os.Getenv("GAE_VERSION")
-		if versionID == "" {
-			return nil, fmt.Errorf("env var GAE_VERSION missing")
-		}
-
-		// Create a monitored resource descriptor that will target GAE
-		monitoredRes := &monitoredres.MonitoredResource{
-			Type: "gae_app",
-			Labels: map[string]string{
-				"project_id": projectID,
-				"module_id":  serviceID,
-				"version_id": versionID,
-			},
-		}
-
-		opts = append(opts, WithStackdriver(projectID, "", logID, monitoredRes))
-	} else {
-		opts = append(opts, WithLocal())
-	}
-
-	return NewLogger(opts...)
-}
-
-// MustNewAppEngineLogger returns a Logger suitable for use in AppEngine.
-// On local dev server it uses the local stdout -logger and in the cloud it
-// uses the Stackdriver logger.
-// The first value of args is the logID. If omitted or empty string is given,
-// the default value of "appengine.googleapis.com/request_log" is used.
-// Panics on errors.
-func MustNewAppEngineLogger(args ...string) *Logger {
-	log, err := NewAppEngineLogger(args...)
-	if err != nil {
-		stdlog.Panicf("failed to create logger: %v", err)
-	}
-
-	return log
 }
 
 // SetLogLevel sets the log levels of the underlying logger interfaces.
@@ -326,11 +158,7 @@ func (l *Logger) SetLogLevel(logLevel Level) *Logger {
 
 	if l.zapLogger != nil {
 		// Adjust zap's atomic level
-		zapLevel := zapcore.InfoLevel
-		if l, ok := levelToZapLevelMap[logLevel]; ok {
-			zapLevel = l
-		}
-		l.zapLevel.SetLevel(zapLevel)
+		setZapLogLevel(l.zapConfig, logLevel)
 	}
 
 	return l

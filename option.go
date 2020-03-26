@@ -1,8 +1,7 @@
 package cloudlogging
 
 import (
-	"io"
-
+	"github.com/qvik/go-cloudlogging/internal"
 	"google.golang.org/genproto/googleapis/api/monitoredres"
 )
 
@@ -10,12 +9,12 @@ type options struct {
 	logLevel                     Level
 	gcpProjectID                 string
 	credentialsFilePath          string
-	useLocal                     bool
-	useLocalFluentD              bool
+	useZap                       bool
+	zapOutputPath                string
+	zapErrorOutputPath           string
 	useStackdriver               bool
 	stackdriverLogID             string
 	stackDriverMonitoredResource *monitoredres.MonitoredResource
-	localOutput                  io.Writer
 	commonLabels                 map[string]string
 }
 
@@ -35,43 +34,32 @@ func WithLevel(logLevel Level) LogOption {
 	return withLevel(logLevel)
 }
 
-type withLocalOutput struct {
-	output io.Writer
+type withZap struct {
+	// Path of output log file; default is stdout
+	outputPath string
+
+	// Path of output errors log file; default is stdout
+	errorOutputPath string
 }
 
-func (w withLocalOutput) apply(opts *options) {
-	opts.localOutput = w.output
+func (w withZap) apply(opts *options) {
+	opts.useZap = true
+	opts.zapOutputPath = w.outputPath
+	opts.zapErrorOutputPath = w.errorOutputPath
 }
 
-// WithLocalOutput returns a LogOption that redirects the output to the
-// given io.Writer. The default ouput is os.Stdout.
-func WithLocalOutput(output io.Writer) LogOption {
-	return withLocalOutput{output: output}
-}
+// WithZap returns a LogOption that enables the local Zap logger.
+// To override log output. setpaths to point to
+// a log file(s). First argument should normal output log file path and the second
+// should be the error output log file path. The defaults are stdout / stderr.
+func WithZap(paths ...string) LogOption {
+	outputPath, _ := internal.GetArg(0, paths...)
+	errorOutputPath, _ := internal.GetArg(1, paths...)
 
-type withLocal bool
-
-func (w withLocal) apply(opts *options) {
-	opts.useLocal = true
-}
-
-// WithLocal returns a LogOption that enables the local logger
-// and configures to use the standard output.
-func WithLocal() LogOption {
-	return withLocal(true)
-}
-
-type withLocalFluentD bool
-
-func (w withLocalFluentD) apply(opts *options) {
-	opts.useLocal = true
-	opts.useLocalFluentD = true
-}
-
-// WithLocalFluentD returns a LogOption that enables local logger
-// and configures it to use FluentD output.
-func WithLocalFluentD() LogOption {
-	return withLocalFluentD(true)
+	return withZap{
+		outputPath:      outputPath,
+		errorOutputPath: errorOutputPath,
+	}
 }
 
 type withStackdriver struct {

@@ -13,6 +13,7 @@ var (
 	levelToStackdriverSeverityMap map[Level]stackdriver.Severity
 )
 
+// createStackdriverLogger creates a new Stackdriver logging client and a logger
 func createStackdriverLogger(opts options) (*stackdriver.Client,
 	*stackdriver.Logger, error) {
 
@@ -22,19 +23,9 @@ func createStackdriverLogger(opts options) (*stackdriver.Client,
 	if opts.credentialsFilePath != "" {
 		//TODO use WriteScope here too
 		o = append(o, option.WithCredentialsFile(opts.credentialsFilePath))
-	} /*else {
-		//TODO is this a good place to put this?
-		stdlog.Printf("Using Default token source for authentication")
-		tokenSource, err := googleoauth2.DefaultTokenSource(ctx, logging.WriteScope)
-		if err != nil {
-			return nil, nil, fmt.Errorf("failed to create default token source: %v", err)
-		}
+	}
 
-		o = append(o, option.WithTokenSource(tokenSource))
-	}*/
-
-	// See:
-	// https://godoc.org/cloud.google.com/go/logging#NewClient
+	// See: https://godoc.org/cloud.google.com/go/logging#NewClient
 	parent := fmt.Sprintf("projects/%v", opts.gcpProjectID)
 	client, err := stackdriver.NewClient(ctx, parent, o...)
 	if err != nil {

@@ -1,7 +1,7 @@
 package cloudlogging
 
 import (
-	zap "go.uber.org/zap"
+	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 )
 
@@ -12,29 +12,49 @@ var (
 // Zap SugaredLogger logger function
 type logFunc func(string, ...interface{})
 
-func createZapLogger(opts options) (*zap.Logger, zap.AtomicLevel, error) {
+// createZapLogger creates a new Zap logger
+func createZapLogger(opts options) (*zap.Logger, *zap.Config, error) {
 	zapLevel := zapcore.InfoLevel
 	if l, ok := levelToZapLevelMap[opts.logLevel]; ok {
 		zapLevel = l
 	}
 	atomicLevel := zap.NewAtomicLevelAt(zapLevel)
 
-	cfg := zap.Config{
+	outputPaths := []string{"stdout"}
+	errorOutputPaths := []string{"stderr"}
+
+	if opts.zapOutputPath != "" {
+		outputPaths = []string{opts.zapOutputPath}
+	}
+
+	if opts.zapErrorOutputPath != "" {
+		errorOutputPaths = []string{opts.zapErrorOutputPath}
+	}
+
+	cfg := &zap.Config{
 		Level:            atomicLevel,
-		Development:      true, //TODO do something about this?
+		Development:      true,
 		Encoding:         "console",
 		EncoderConfig:    zap.NewDevelopmentEncoderConfig(),
-		OutputPaths:      []string{"stdout"},
-		ErrorOutputPaths: []string{"stderr"},
+		OutputPaths:      outputPaths,
+		ErrorOutputPaths: errorOutputPaths,
 	}
 
 	logger, err := cfg.Build()
 
 	if err != nil {
-		return nil, atomicLevel, err
+		return nil, cfg, err
 	}
 
-	return logger, atomicLevel, nil
+	return logger, cfg, nil
+}
+
+func setZapLogLevel(zapConfig *zap.Config, logLevel Level) {
+	zapLevel := zapcore.InfoLevel
+	if l, ok := levelToZapLevelMap[logLevel]; ok {
+		zapLevel = l
+	}
+	zapConfig.Level.SetLevel(zapLevel)
 }
 
 func init() {
