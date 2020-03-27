@@ -65,12 +65,6 @@ type Logger struct {
 	// and not the formatted logging (eg. Debug(), but not Debugf()).
 	// The format is: key1, value1, key2, value2, ...
 	commonKeysAndValues []interface{}
-
-	// Base ("root") logger to use for actual low-level logging if defined.
-	// If it is defined, all logging calls are forwarded to it, but all
-	// structured logging calls use the commonKeysAndValues defined
-	// by the current instance.
-	// baseLog *Logger
 }
 
 // WithAdditionalKeysAndValues creates a new logger that uses the current
@@ -78,6 +72,7 @@ type Logger struct {
 // logger). Making changes to the base logger will be reflected in any
 // calls to the new logger. Additional keys and values may be added for
 // structured logging purposes.
+// This is a light operation.
 // Panics if number of elements in keysAndValues is not even.
 func (l *Logger) WithAdditionalKeysAndValues(
 	keysAndValues ...interface{}) *Logger {
@@ -85,12 +80,6 @@ func (l *Logger) WithAdditionalKeysAndValues(
 	if len(keysAndValues)%2 != 0 {
 		stdlog.Panicf("must pass even number of keysAndValues")
 	}
-
-	// Find the "root" base logger
-	// base := l
-	// for base.baseLog != nil {
-	// 	base = base.baseLog
-	// }
 
 	// Create a new logger object which is an exact copy of its base,
 	// but a fresh object.
@@ -102,7 +91,7 @@ func (l *Logger) WithAdditionalKeysAndValues(
 
 	// Create a new Zap logger which wraps the new properties
 	if newLogger.zapLogger != nil {
-		newLogger.zapLogger = newLogger.zapLogger.With(keysAndValues)
+		newLogger.zapLogger = newLogger.zapLogger.With(keysAndValues...)
 	}
 
 	return &newLogger
@@ -149,7 +138,7 @@ func NewLogger(opt ...LogOption) (*Logger, error) {
 
 		// Add the initial common labels, if any
 		if len(opts.commonKeysAndValues) > 0 {
-			zapLogger = zapLogger.With(opts.commonKeysAndValues)
+			zapLogger = zapLogger.With(opts.commonKeysAndValues...)
 		}
 	}
 
