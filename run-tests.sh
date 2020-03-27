@@ -4,5 +4,4 @@ set -e
 
 echo "Running unit tests.."
 go test -v github.com/qvik/go-cloudlogging
-go test -v github.com/qvik/go-cloudlogging/gcp
-go test -v github.com/qvik/go-cloudlogging/zap
+go test -v github.com/qvik/go-cloudlogging/internal

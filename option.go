@@ -1,7 +1,20 @@
 package cloudlogging
 
 import (
+	stdlog "log"
+
+	"go.uber.org/zap"
 	"google.golang.org/genproto/googleapis/api/monitoredres"
+)
+
+// OutputHint provides a mechanism to instruct log backends to
+// adjust their output / formatting. Not all log backends react to any / all
+// of the hints.
+type OutputHint int32
+
+const (
+	// JSONFormat output hint requests the log backend to output JSON(NL).
+	JSONFormat OutputHint = iota
 )
 
 type options struct {
@@ -9,12 +22,14 @@ type options struct {
 	gcpProjectID                 string
 	credentialsFilePath          string
 	useZap                       bool
+	zapConfig                    *zap.Config
 	outputPaths                  []string
 	errorOutputPaths             []string
+	outputHints                  []OutputHint
 	useStackdriver               bool
 	stackdriverLogID             string
 	stackDriverMonitoredResource *monitoredres.MonitoredResource
-	commonLabels                 map[string]string
+	commonKeysAndValues          []interface{}
 }
 
 // LogOption is an option for the cloudlogging API.
@@ -59,18 +74,35 @@ func WithErrorOutputPaths(paths ...string) LogOption {
 	return withErrorOutputPaths(paths)
 }
 
-type withZap bool
+type withOutputHints []OutputHint
+
+func (w withOutputHints) apply(opts *options) {
+	opts.outputHints = w
+}
+
+// WithOutputHints adds output hints to the log backend.
+func WithOutputHints(hints ...OutputHint) LogOption {
+	return withOutputHints(hints)
+}
+
+type withZap struct {
+	zapConfig *zap.Config
+}
 
 func (w withZap) apply(opts *options) {
 	opts.useZap = true
+	opts.zapConfig = w.zapConfig
 }
 
-// WithZap returns a LogOption that enables the local Zap logger.
-// To override log output. setpaths to point to
-// a log file(s). First argument should normal output log file path and the second
-// should be the error output log file path. The defaults are stdout / stderr.
-func WithZap() LogOption {
-	return withZap(true)
+// WithZap returns a LogOption that enables the local Zap logger, optionally
+// with a Zap configuration.
+func WithZap(config ...*zap.Config) LogOption {
+	var cfg *zap.Config
+	if len(config) > 0 {
+		cfg = config[0]
+	}
+
+	return withZap{zapConfig: cfg}
 }
 
 type withStackdriver struct {
@@ -92,6 +124,7 @@ func (w withStackdriver) apply(opts *options) {
 // and configures it to use the given project id.
 // If you supply empty string for credentialsFilePath, the default
 // service account is used.
+// Stackdriver log backend does not react to OutputHints.
 func WithStackdriver(gcpProjectID, credentialsFilePath,
 	stackdriverLogID string,
 	monitoredResource *monitoredres.MonitoredResource) LogOption {
@@ -104,16 +137,19 @@ func WithStackdriver(gcpProjectID, credentialsFilePath,
 	}
 }
 
-type withCommonLabels struct {
-	commonLabels map[string]string
+type withCommonKeysAndValues []interface{}
+
+func (w withCommonKeysAndValues) apply(opts *options) {
+	opts.commonKeysAndValues = w
 }
 
-func (w withCommonLabels) apply(opts *options) {
-	opts.commonLabels = w.commonLabels
-}
+// WithCommonKeysAndValues returns a LogOption that adds a set of
+// common keys and values (labels / fields) to all structured log messages.
+// For parameters should be: key1, value1, key2, value2, ..
+func WithCommonKeysAndValues(commonKeysAndValues ...interface{}) LogOption {
+	if len(commonKeysAndValues)%2 != 0 {
+		stdlog.Fatalf("number of keys + values must be even")
+	}
 
-// WithCommonLabels returns a LogOption that adds a set of string=string
-// labels (fields) to all structured log messages.
-func WithCommonLabels(commonLabels map[string]string) LogOption {
-	return withCommonLabels{commonLabels: commonLabels}
+	return withCommonKeysAndValues(commonKeysAndValues)
 }

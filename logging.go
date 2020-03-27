@@ -24,10 +24,12 @@ const (
 )
 
 // Logger writes logs to the local logger as well as
-// the Stackdriver cloud logs.
+// the Stackdriver cloud logs. Logger is mostly immutable - the only thing
+// that can be modified is the log level.
 //
-// Logger is thread safe to use; the Set* methods however, are not and
-// you should either set them at the start of your program or synchronize
+// Logger is thread-safe to use for any of the logging calls.
+// Some methods such as SetLogLevel(), Close(), Flush() however are not and
+// you should either call them at the start / end of your program or synchronize
 // your access to the Logger instance if setting on them on the fly. The
 // reasoning here being that standard Logger calls should not suffer a
 // performance hit from locking.
@@ -51,27 +53,24 @@ type Logger struct {
 	zapConfig *zap.Config
 	zapLogger *zap.SugaredLogger
 
-	// Zap atomic logging level handle
-	// zapLevel zap.AtomicLevel
-
 	// Stackdriver client
 	stackdriverClient *stackdriver.Client
 
 	// Stackdriver logger
 	stackdriverLogger *stackdriver.Logger
 
-	// Default log parameters. These are added to every structured log message
+	// Common log parameters. These are added to every structured log message
 	// in addition to the parameters issued in the actual logging call.
 	// Notice that this only applies to structured logging
 	// and not the formatted logging (eg. Debug(), but not Debugf()).
 	// The format is: key1, value1, key2, value2, ...
-	defaultKeysAndValues []interface{}
+	commonKeysAndValues []interface{}
 
 	// Base ("root") logger to use for actual low-level logging if defined.
 	// If it is defined, all logging calls are forwarded to it, but all
-	// structured logging calls use the defaultKeysAndValues defined
+	// structured logging calls use the commonKeysAndValues defined
 	// by the current instance.
-	baseLog *Logger
+	// baseLog *Logger
 }
 
 // WithAdditionalKeysAndValues creates a new logger that uses the current
@@ -88,16 +87,25 @@ func (l *Logger) WithAdditionalKeysAndValues(
 	}
 
 	// Find the "root" base logger
-	base := l
-	for base.baseLog != nil {
-		base = base.baseLog
+	// base := l
+	// for base.baseLog != nil {
+	// 	base = base.baseLog
+	// }
+
+	// Create a new logger object which is an exact copy of its base,
+	// but a fresh object.
+	newLogger := *l
+
+	// Append the added common keys and values
+	newLogger.commonKeysAndValues =
+		append(newLogger.commonKeysAndValues, keysAndValues...)
+
+	// Create a new Zap logger which wraps the new properties
+	if newLogger.zapLogger != nil {
+		newLogger.zapLogger = newLogger.zapLogger.With(keysAndValues)
 	}
 
-	newLogger := &Logger{baseLog: base}
-	newLogger.defaultKeysAndValues =
-		append(base.defaultKeysAndValues, keysAndValues...)
-
-	return newLogger
+	return &newLogger
 }
 
 // NewLogger creates a new Logger instance using the given options.
@@ -138,14 +146,20 @@ func NewLogger(opt ...LogOption) (*Logger, error) {
 
 		zapConfig = config
 		zapLogger = logger.Sugar()
+
+		// Add the initial common labels, if any
+		if len(opts.commonKeysAndValues) > 0 {
+			zapLogger = zapLogger.With(opts.commonKeysAndValues)
+		}
 	}
 
 	l := &Logger{
-		logLevel:          opts.logLevel,
-		stackdriverClient: stackdriverClient,
-		stackdriverLogger: stackdriverLogger,
-		zapConfig:         zapConfig,
-		zapLogger:         zapLogger,
+		logLevel:            opts.logLevel,
+		stackdriverClient:   stackdriverClient,
+		stackdriverLogger:   stackdriverLogger,
+		zapConfig:           zapConfig,
+		zapLogger:           zapLogger,
+		commonKeysAndValues: opts.commonKeysAndValues,
 	}
 
 	return l, nil
@@ -174,20 +188,6 @@ func (l *Logger) SetLogLevel(logLevel Level) *Logger {
 	}
 
 	return l
-}
-
-// SetDefaultKeysAndValues sets the set of default structured logging
-// keys and values added to every (structured) logging call.
-// Format is: key1, value1, key2, value2, ..
-// Panics if number of elements in keysAndValues is not even.
-func (l *Logger) SetDefaultKeysAndValues(
-	keysAndValues ...interface{}) {
-
-	if len(keysAndValues)%2 != 0 {
-		stdlog.Panicf("must pass even number of keysAndValues")
-	}
-
-	l.defaultKeysAndValues = keysAndValues
 }
 
 // Close closes the logger and flushes the underlying loggers'
@@ -226,31 +226,31 @@ func (l *Logger) Flush() error {
 // Writes a flat log entry.
 func (l *Logger) logImplf(level Level, format string, args ...interface{}) {
 	// Use base logger if it is defined
-	log := l
-	if l.baseLog != nil {
-		log = l.baseLog
-	}
+	// log := l
+	// if l.baseLog != nil {
+	// 	log = l.baseLog
+	// }
 
-	if level < log.logLevel {
+	if level < l.logLevel {
 		return
 	}
 
 	// Emit Stackdriver logging - if enabled
-	if log.stackdriverLogger != nil {
+	if l.stackdriverLogger != nil {
 		severity := stackdriver.Default
 		if s, ok := levelToStackdriverSeverityMap[level]; ok {
 			severity = s
 		}
 
-		log.stackdriverLogger.Log(stackdriver.Entry{
+		l.stackdriverLogger.Log(stackdriver.Entry{
 			Payload:  fmt.Sprintf(format, args...),
 			Severity: severity,
 		})
 	}
 
 	// Emit local logging - if enabled
-	if log.zapLogger != nil {
-		f := levelToZapFlatLogFunc(level, log.zapLogger)
+	if l.zapLogger != nil {
+		f := levelToZapFlatLogFunc(level, l.zapLogger)
 		if f != nil {
 			f(format, args...)
 		}
@@ -266,13 +266,13 @@ func (l *Logger) logImpl(level Level, payload interface{},
 	}
 
 	// Use base logger if it is defined
-	log := l
-	if l.baseLog != nil {
-		log = l.baseLog
-	}
+	// log := l
+	// if l.baseLog != nil {
+	// 	log = l.baseLog
+	// }
 
 	// Emit Stackdriver logging - if enabled
-	if log.stackdriverLogger != nil {
+	if l.stackdriverLogger != nil {
 		severity := stackdriver.Default
 		if s, ok := levelToStackdriverSeverityMap[level]; ok {
 			severity = s
@@ -288,16 +288,16 @@ func (l *Logger) logImpl(level Level, payload interface{},
 		}
 
 		// Add the default set of param keys and values.
-		// Note that here we want to use l.defaultKeysAndValues
-		// instead of log.defaultKeysAndValues.
-		for i := 0; i < len(l.defaultKeysAndValues); i += 2 {
-			key := fmt.Sprintf("%v", l.defaultKeysAndValues[i])
-			value := fmt.Sprintf("%+v", l.defaultKeysAndValues[i+1])
+		// Note that here we want to use l.commonKeysAndValues
+		// instead of log.commonKeysAndValues.
+		for i := 0; i < len(l.commonKeysAndValues); i += 2 {
+			key := fmt.Sprintf("%v", l.commonKeysAndValues[i])
+			value := fmt.Sprintf("%+v", l.commonKeysAndValues[i+1])
 
 			labels[key] = value
 		}
 
-		log.stackdriverLogger.Log(stackdriver.Entry{
+		l.stackdriverLogger.Log(stackdriver.Entry{
 			Payload:  payload,
 			Labels:   labels,
 			Severity: severity,
@@ -305,14 +305,10 @@ func (l *Logger) logImpl(level Level, payload interface{},
 	}
 
 	// Emit local logging - if enabled
-	if log.zapLogger != nil {
-		f := levelToZapStructuredLogFunc(level, log.zapLogger)
+	if l.zapLogger != nil {
+		f := levelToZapStructuredLogFunc(level, l.zapLogger)
 		if f != nil {
-			// Add the default set of param keys and values.
-			// Note that here we want to use l.defaultKeysAndValues
-			// instead of log.defaultKeysAndValues.
-			params := append(l.defaultKeysAndValues, keysAndValues...)
-			f(fmt.Sprintf("%+v", payload), params...)
+			f(fmt.Sprintf("%+v", payload), keysAndValues...)
 		}
 	}
 }

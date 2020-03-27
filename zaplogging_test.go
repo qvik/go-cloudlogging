@@ -1,12 +1,10 @@
-package zap
+package cloudlogging
 
 import (
 	"io/ioutil"
 	"os"
 	"strings"
 	"testing"
-
-	"github.com/qvik/go-cloudlogging"
 )
 
 // captureStdout captures the stdout output of a function.
@@ -51,15 +49,15 @@ func captureStderr(f func()) string {
 
 func TestZapLogger(t *testing.T) {
 	logOutput := captureStdout(func() {
-		opts := []cloudlogging.LogOption{
-			cloudlogging.WithZap(),
+		opts := []LogOption{
+			WithZap(),
 		}
-		log, err := cloudlogging.NewLogger(opts...)
+		log, err := NewLogger(opts...)
 		if err != nil {
 			t.Errorf("failed to create logger: %v", err)
 		}
 
-		log.SetLogLevel(cloudlogging.Debug)
+		log.SetLogLevel(Debug)
 
 		log.Debugf("Test A=%v,B=%v", 1, 2)
 

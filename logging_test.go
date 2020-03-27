@@ -2,16 +2,20 @@ package cloudlogging
 
 import "testing"
 
-func TestSetDefaultKeysAndValues(t *testing.T) {
+func TestWithCommonKeysAndValues(t *testing.T) {
 	v := []interface{}{"key1", "value1", "key2", "value2"}
-	log, err := NewLogger()
+	log, err := NewLogger(WithCommonKeysAndValues(v...))
 	if err != nil {
 		t.Fatalf("failed to create logger")
 	}
 
-	log.SetDefaultKeysAndValues(v...)
+	if len(v) != len(log.commonKeysAndValues) {
+		t.Errorf("mismatching param array lengths: %v vs %v: %+v",
+			len(v), len(log.commonKeysAndValues),
+			log.commonKeysAndValues)
+	}
 
-	for i, x := range log.defaultKeysAndValues {
+	for i, x := range log.commonKeysAndValues {
 		if x != v[i] {
 			t.Errorf("unexpected key/value: %v", x)
 		}
@@ -22,36 +26,41 @@ func TestWithAdditionalKeysAndValues(t *testing.T) {
 	v1 := []interface{}{"key1", "value1", "key2", false}
 	v2 := []interface{}{"key3", 123}
 
-	baseLog, err := NewLogger()
+	baseLog, err := NewLogger(WithCommonKeysAndValues(v1...))
 	if err != nil {
 		t.Fatalf("failed to create logger")
 	}
-	baseLog.SetDefaultKeysAndValues(v1...)
 
 	log := baseLog.WithAdditionalKeysAndValues(v2...)
 
-	if log.baseLog != baseLog {
-		t.Errorf("invalid baseLog")
+	if log == baseLog {
+		t.Error("indistinctive logger instances")
+	}
+
+	if log.logLevel != baseLog.logLevel {
+		t.Error("distinctive log levels")
 	}
 
 	// Check that base logger has not been affected
-	if len(v1) != len(baseLog.defaultKeysAndValues) {
-		t.Errorf("mismatching param array lengths: %v vs %v",
-			len(v1), len(baseLog.defaultKeysAndValues))
+	if len(v1) != len(baseLog.commonKeysAndValues) {
+		t.Errorf("mismatching param array lengths: %v vs %v: %+v",
+			len(v1), len(baseLog.commonKeysAndValues),
+			baseLog.commonKeysAndValues)
 	}
-	for i, x := range baseLog.defaultKeysAndValues {
+	for i, x := range baseLog.commonKeysAndValues {
 		if x != v1[i] {
 			t.Errorf("unexpected key/value: %v", x)
 		}
 	}
 
 	v := append(v1, v2...)
-	if len(v) != len(log.defaultKeysAndValues) {
-		t.Errorf("mismatching param array lengths: %v vs %v",
-			len(v), len(log.defaultKeysAndValues))
+	if len(v) != len(log.commonKeysAndValues) {
+		t.Errorf("mismatching param array lengths: %v vs %v: %+v",
+			len(v), len(log.commonKeysAndValues),
+			log.commonKeysAndValues)
 	}
 
-	for i, x := range log.defaultKeysAndValues {
+	for i, x := range log.commonKeysAndValues {
 		if x != v[i] {
 			t.Errorf("unexpected key/value: %v", x)
 		}
@@ -72,8 +81,8 @@ func ExampleLogger_Debugf() {
 }
 
 func ExampleLogger_WithAdditionalKeysAndValues() {
-	baseLog, _ := NewLogger() // Allocates a null logger
-	baseLog.SetDefaultKeysAndValues("key1", "value1")
+	// Allocates a null logger with no actual backends
+	baseLog, _ := NewLogger(WithCommonKeysAndValues("key1", "value1"))
 
 	// Create a "sub" logger that inherits the default keys and values from
 	// its defined baselogger (baseLog)

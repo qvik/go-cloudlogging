@@ -12,8 +12,7 @@ var (
 // Zap SugaredLogger logger function
 type logFunc func(string, ...interface{})
 
-// createZapLogger creates a new Zap logger
-func createZapLogger(opts options) (*zap.Logger, *zap.Config, error) {
+func createConfig(opts options) *zap.Config {
 	zapLevel := zapcore.InfoLevel
 	if l, ok := levelToZapLevelMap[opts.logLevel]; ok {
 		zapLevel = l
@@ -30,13 +29,50 @@ func createZapLogger(opts options) (*zap.Logger, *zap.Config, error) {
 		errorOutputPaths = []string{"stderr"}
 	}
 
+	encoding := "console"
+	encoderConfig := zap.NewDevelopmentEncoderConfig()
+	disableCaller := false
+
+	// Process output hints
+	for _, h := range opts.outputHints {
+		if h == JSONFormat {
+			encoding = "json"
+			disableCaller = true
+			encoderConfig = zapcore.EncoderConfig{
+				// Keys can be anything except the empty string.
+				TimeKey:        "timestamp",
+				LevelKey:       "level",
+				MessageKey:     "message",
+				StacktraceKey:  "stacktrace",
+				LineEnding:     zapcore.DefaultLineEnding,
+				EncodeLevel:    zapcore.CapitalLevelEncoder,
+				EncodeTime:     zapcore.ISO8601TimeEncoder,
+				EncodeDuration: zapcore.StringDurationEncoder,
+				EncodeCaller:   zapcore.ShortCallerEncoder,
+			}
+		}
+	}
+
 	cfg := &zap.Config{
 		Level:            atomicLevel,
 		Development:      true,
-		Encoding:         "console",
-		EncoderConfig:    zap.NewDevelopmentEncoderConfig(),
+		DisableCaller:    disableCaller,
+		Encoding:         encoding,
+		EncoderConfig:    encoderConfig,
 		OutputPaths:      outputPaths,
 		ErrorOutputPaths: errorOutputPaths,
+	}
+
+	return cfg
+}
+
+// createZapLogger creates a new Zap logger
+func createZapLogger(opts options) (*zap.Logger, *zap.Config, error) {
+	// We use the config specified on options if the API user defined one.
+	// If not, we're creating one based on the OutputHints.
+	cfg := opts.zapConfig
+	if cfg == nil {
+		cfg = createConfig(opts)
 	}
 
 	logger, err := cfg.Build()

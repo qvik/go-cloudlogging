@@ -1,4 +1,4 @@
-package gcp
+package cloudlogging
 
 import (
 	"testing"

@@ -1,11 +1,10 @@
-package gcp
+package cloudlogging
 
 import (
 	"fmt"
 	stdlog "log"
 	"os"
 
-	"github.com/qvik/go-cloudlogging"
 	"github.com/qvik/go-cloudlogging/internal"
 
 	"google.golang.org/genproto/googleapis/api/monitoredres"
@@ -13,25 +12,25 @@ import (
 
 // NewComputeEngineLogger returns a Logger suitable for use in Google Compute Engine
 // instance as well as Google Kubernetes Engine. The returned logger only logs via Stackdriver.
-func NewComputeEngineLogger(projectID, logID string) (*cloudlogging.Logger, error) {
+func NewComputeEngineLogger(projectID, logID string) (*Logger, error) {
 	// See about using https://godoc.org/cloud.google.com/go/logging#CommonResource
 	// with values from:
 	//https://cloud.google.com/logging/docs/api/v2/resource-list#resource-types
 
-	opts := []cloudlogging.LogOption{}
+	opts := []LogOption{}
 
 	// On GCE we can omit supplying a MonitoredResource - it will be
 	// autodetected:
 	// https://godoc.org/cloud.google.com/go/logging#CommonResource
-	opts = append(opts, cloudlogging.WithStackdriver(projectID, "", logID, nil))
+	opts = append(opts, WithStackdriver(projectID, "", logID, nil))
 
-	return cloudlogging.NewLogger(opts...)
+	return NewLogger(opts...)
 }
 
 // MustNewComputeEngineLogger returns a Logger suitable for use in Google Compute Engine
 // instance as well as Google Kubernetes Engine. The returned logger only logs via Stackdriver.
 // Panics on errors.
-func MustNewComputeEngineLogger(projectID, logID string) *cloudlogging.Logger {
+func MustNewComputeEngineLogger(projectID, logID string) *Logger {
 	log, err := NewComputeEngineLogger(projectID, logID)
 	if err != nil {
 		stdlog.Panicf("failed to create logger: %v", err)
@@ -44,7 +43,7 @@ func MustNewComputeEngineLogger(projectID, logID string) *cloudlogging.Logger {
 // Cloud Functions. It will emit the logs using the Stackdriver API.
 // The first value of args is the logID. If omitted or empty string is given,
 // the default value of "cloudfunctions.googleapis.com/cloud-functions" is used.
-func NewCloudFunctionLogger(args ...string) (*cloudlogging.Logger, error) {
+func NewCloudFunctionLogger(args ...string) (*Logger, error) {
 	// See about using https://godoc.org/cloud.google.com/go/logging#CommonResource
 	// with values from:
 	//https://cloud.google.com/logging/docs/api/v2/resource-list#resource-types
@@ -69,7 +68,7 @@ func NewCloudFunctionLogger(args ...string) (*cloudlogging.Logger, error) {
 		return nil, fmt.Errorf("env var FUNCTION_REGION missing")
 	}
 
-	opts := []cloudlogging.LogOption{}
+	opts := []LogOption{}
 
 	// Create a monitored resource descriptor that will target Cloud Functions
 	monitoredRes := &monitoredres.MonitoredResource{
@@ -82,9 +81,9 @@ func NewCloudFunctionLogger(args ...string) (*cloudlogging.Logger, error) {
 	}
 
 	opts = append(opts,
-		cloudlogging.WithStackdriver(projectID, "", logID, monitoredRes))
+		WithStackdriver(projectID, "", logID, monitoredRes))
 
-	return cloudlogging.NewLogger(opts...)
+	return NewLogger(opts...)
 }
 
 // MustNewCloudFunctionLogger returns a Logger suitable for use in Google
@@ -92,7 +91,7 @@ func NewCloudFunctionLogger(args ...string) (*cloudlogging.Logger, error) {
 // The first value of args is the logID. If omitted or empty string is given,
 // the default value of "cloudfunctions.googleapis.com/cloud-functions" is used.
 // Panics on errors.
-func MustNewCloudFunctionLogger(args ...string) *cloudlogging.Logger {
+func MustNewCloudFunctionLogger(args ...string) *Logger {
 	log, err := NewCloudFunctionLogger(args...)
 	if err != nil {
 		stdlog.Panicf("failed to create logger: %v", err)
@@ -106,8 +105,8 @@ func MustNewCloudFunctionLogger(args ...string) *cloudlogging.Logger {
 // uses the Stackdriver logger.
 // The first value of args is the logID. If omitted or empty string is given,
 // the default value of "appengine.googleapis.com/request_log" is used.
-func NewAppEngineLogger(args ...string) (*cloudlogging.Logger, error) {
-	opts := []cloudlogging.LogOption{}
+func NewAppEngineLogger(args ...string) (*Logger, error) {
+	opts := []LogOption{}
 
 	logID := "appengine.googleapis.com/request_log"
 	if arg0, ok := internal.GetArg(0, args...); ok && arg0 != "" {
@@ -140,13 +139,13 @@ func NewAppEngineLogger(args ...string) (*cloudlogging.Logger, error) {
 			},
 		}
 
-		opts = append(opts, cloudlogging.WithStackdriver(projectID,
+		opts = append(opts, WithStackdriver(projectID,
 			"", logID, monitoredRes))
 	} else {
-		opts = append(opts, cloudlogging.WithZap())
+		opts = append(opts, WithZap())
 	}
 
-	return cloudlogging.NewLogger(opts...)
+	return NewLogger(opts...)
 }
 
 // MustNewAppEngineLogger returns a Logger suitable for use in AppEngine.
@@ -155,7 +154,7 @@ func NewAppEngineLogger(args ...string) (*cloudlogging.Logger, error) {
 // The first value of args is the logID. If omitted or empty string is given,
 // the default value of "appengine.googleapis.com/request_log" is used.
 // Panics on errors.
-func MustNewAppEngineLogger(args ...string) *cloudlogging.Logger {
+func MustNewAppEngineLogger(args ...string) *Logger {
 	log, err := NewAppEngineLogger(args...)
 	if err != nil {
 		stdlog.Panicf("failed to create logger: %v", err)
