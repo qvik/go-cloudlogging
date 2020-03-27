@@ -225,12 +225,6 @@ func (l *Logger) Flush() error {
 
 // Writes a flat log entry.
 func (l *Logger) logImplf(level Level, format string, args ...interface{}) {
-	// Use base logger if it is defined
-	// log := l
-	// if l.baseLog != nil {
-	// 	log = l.baseLog
-	// }
-
 	if level < l.logLevel {
 		return
 	}
@@ -265,12 +259,6 @@ func (l *Logger) logImpl(level Level, payload interface{},
 		stdlog.Panicf("must pass even number of keysAndValues")
 	}
 
-	// Use base logger if it is defined
-	// log := l
-	// if l.baseLog != nil {
-	// 	log = l.baseLog
-	// }
-
 	// Emit Stackdriver logging - if enabled
 	if l.stackdriverLogger != nil {
 		severity := stackdriver.Default
@@ -278,21 +266,14 @@ func (l *Logger) logImpl(level Level, payload interface{},
 			severity = s
 		}
 
+		// Add the common label set
+		allKeysAndValues := append(keysAndValues, l.commonKeysAndValues)
+
 		// Create the labels map from the param keys and values
 		labels := map[string]string{}
-		for i := 0; i < len(keysAndValues); i += 2 {
-			key := fmt.Sprintf("%v", keysAndValues[i])
-			value := fmt.Sprintf("%+v", keysAndValues[i+1])
-
-			labels[key] = value
-		}
-
-		// Add the default set of param keys and values.
-		// Note that here we want to use l.commonKeysAndValues
-		// instead of log.commonKeysAndValues.
-		for i := 0; i < len(l.commonKeysAndValues); i += 2 {
-			key := fmt.Sprintf("%v", l.commonKeysAndValues[i])
-			value := fmt.Sprintf("%+v", l.commonKeysAndValues[i+1])
+		for i := 0; i < len(allKeysAndValues); i += 2 {
+			key := fmt.Sprintf("%v", allKeysAndValues[i])
+			value := fmt.Sprintf("%+v", allKeysAndValues[i+1])
 
 			labels[key] = value
 		}
