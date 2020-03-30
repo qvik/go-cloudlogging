@@ -2,7 +2,7 @@
 
 [![GoDoc](https://godoc.org/github.com/qvik/go-cloudlogging?status.svg)](https://godoc.org/github.com/qvik/go-cloudlogging)
 
-This module provides a log wrapper that is intended to handle logging in cloud-based backend environment. It can be configured to use a local logger or a over-the-network cloud logging library. Currently the only supported cloud logger is Stackdriver. For local logging purposes, the very efficient Zap logging library is used.
+This module provides a log wrapper that is intended to handle logging in cloud-based backend environment. It can be configured to use a local logger or a over-the-network cloud logging library. Currently the only supported cloud logger is Stackdriver. For local logging purposes, the very efficient Zap logging library is used. It can also be used in AWS environments to produce queryable JSON formatted logs to be inspected in CloudWatch.
 
 The library is intended to be used with Go 1.10+ with module support but does not require that.
 
@@ -10,6 +10,7 @@ The module provides convenience constructor methods for various possible deploym
 
 ## Changelog 
 
+* 0.0.16: Added JSON formatting output hints
 * 0.0.15: Added default parameters for structured logging
 * 0.0.13: Argument handling bugfix, added GoDoc reference to README
 * 0.0.11: Improved documentation.
@@ -42,7 +43,7 @@ For example, to create a logger that logs to both local and Stackdriver logger, 
 func init() {
 	opts := []cloudlog.LogOption{}
 	opts = append(opts, cloudlog.WithStackdriver(projectID, "", logID, nil))
-	opts = append(opts, cloudlog.WithLocal())
+	opts = append(opts, cloudlog.WithZap())
 
 	log, err := cloudlog.NewLogger(opts)
 	if err != nil {
@@ -80,6 +81,20 @@ func init() {
 	log = cloudlog.MustNewCloudFunctionLogger() // Optionally define log ID as arg
 }
 ```
+
+*AWS Elastic Beanstalk / EC2 example:*
+
+```go
+func init() {
+	logfile := "/var/log/example-app.log"
+	log = cloudlogging.MustNewLogger(cloudlogging.WithZap(),
+		cloudlogging.WithOutputHints(cloudlogging.JSONFormat),
+		cloudlogging.WithOutputPaths(logfile),
+		cloudlogging.WithErrorOutputPaths(logfile))
+}
+```
+
+
 
 ## License
 
