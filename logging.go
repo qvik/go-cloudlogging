@@ -256,7 +256,7 @@ func (l *Logger) logImpl(level Level, payload interface{},
 		}
 
 		// Add the common label set
-		allKeysAndValues := append(l.commonKeysAndValues, keysAndValues)
+		allKeysAndValues := append(l.commonKeysAndValues, keysAndValues...)
 
 		// Create the labels map from the param keys and values
 		labels := map[string]string{}
