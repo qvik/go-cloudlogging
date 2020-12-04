@@ -2,6 +2,21 @@ package cloudlogging
 
 import "testing"
 
+func compareListValuesToMap(list []interface{},
+	theMap map[interface{}]interface{}) bool {
+
+	for i := 0; i < len(list); i += 2 {
+		k := list[i]
+		v := list[i+1]
+
+		if theMap[k] != v {
+			return false
+		}
+	}
+
+	return true
+}
+
 func TestWithCommonKeysAndValues(t *testing.T) {
 	v := []interface{}{"key1", "value1", "key2", "value2"}
 	log, err := NewLogger(WithCommonKeysAndValues(v...))
@@ -9,16 +24,14 @@ func TestWithCommonKeysAndValues(t *testing.T) {
 		t.Fatalf("failed to create logger")
 	}
 
-	if len(v) != len(log.commonKeysAndValues) {
+	if (len(v) / 2) != len(log.commonKeysAndValues) {
 		t.Errorf("mismatching param array lengths: %v vs %v: %+v",
 			len(v), len(log.commonKeysAndValues),
 			log.commonKeysAndValues)
 	}
 
-	for i, x := range log.commonKeysAndValues {
-		if x != v[i] {
-			t.Errorf("unexpected key/value: %v", x)
-		}
+	if !compareListValuesToMap(v, log.commonKeysAndValues) {
+		t.Errorf("list values dont match those in the map")
 	}
 }
 
@@ -42,28 +55,25 @@ func TestWithAdditionalKeysAndValues(t *testing.T) {
 	}
 
 	// Check that base logger has not been affected
-	if len(v1) != len(baseLog.commonKeysAndValues) {
+	if (len(v1) / 2) != len(baseLog.commonKeysAndValues) {
 		t.Errorf("mismatching param array lengths: %v vs %v: %+v",
 			len(v1), len(baseLog.commonKeysAndValues),
 			baseLog.commonKeysAndValues)
 	}
-	for i, x := range baseLog.commonKeysAndValues {
-		if x != v1[i] {
-			t.Errorf("unexpected key/value: %v", x)
-		}
+
+	if !compareListValuesToMap(v1, baseLog.commonKeysAndValues) {
+		t.Errorf("list values dont match those in the map")
 	}
 
 	v := append(v1, v2...)
-	if len(v) != len(log.commonKeysAndValues) {
+	if (len(v) / 2) != len(log.commonKeysAndValues) {
 		t.Errorf("mismatching param array lengths: %v vs %v: %+v",
 			len(v), len(log.commonKeysAndValues),
 			log.commonKeysAndValues)
 	}
 
-	for i, x := range log.commonKeysAndValues {
-		if x != v[i] {
-			t.Errorf("unexpected key/value: %v", x)
-		}
+	if !compareListValuesToMap(v, log.commonKeysAndValues) {
+		t.Errorf("list values dont match those in the map")
 	}
 }
 

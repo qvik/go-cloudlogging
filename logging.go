@@ -8,6 +8,7 @@ import (
 	"os"
 
 	stackdriver "cloud.google.com/go/logging"
+	"github.com/qvik/go-cloudlogging/internal"
 	"go.uber.org/zap"
 )
 
@@ -64,7 +65,7 @@ type Logger struct {
 	// Notice that this only applies to structured logging
 	// and not the formatted logging (eg. Debug(), but not Debugf()).
 	// The format is: key1, value1, key2, value2, ...
-	commonKeysAndValues []interface{}
+	commonKeysAndValues map[interface{}]interface{}
 }
 
 // WithAdditionalKeysAndValues creates a new logger that uses the current
@@ -85,9 +86,14 @@ func (l *Logger) WithAdditionalKeysAndValues(
 	// but a fresh object.
 	newLogger := *l
 
-	// Append the added common keys and values
-	newLogger.commonKeysAndValues =
-		append(newLogger.commonKeysAndValues, keysAndValues...)
+	// Make a new map for the keys and values
+	newLogger.commonKeysAndValues = make(map[interface{}]interface{})
+	for k, v := range l.commonKeysAndValues {
+		newLogger.commonKeysAndValues[k] = v
+	}
+
+	// Apply the added common keys and values
+	internal.MustApplyKeysAndValues(keysAndValues, newLogger.commonKeysAndValues)
 
 	// Create a new Zap logger which wraps the new properties
 	if newLogger.zapLogger != nil {
@@ -138,7 +144,8 @@ func NewLogger(opt ...LogOption) (*Logger, error) {
 
 		// Add the initial common labels, if any
 		if len(opts.commonKeysAndValues) > 0 {
-			zapLogger = zapLogger.With(opts.commonKeysAndValues...)
+			keysAndValues := internal.MapToKeysAndValuesList(opts.commonKeysAndValues)
+			zapLogger = zapLogger.With(keysAndValues...)
 		}
 	}
 
@@ -255,14 +262,18 @@ func (l *Logger) logImpl(level Level, payload interface{},
 			severity = s
 		}
 
-		// Add the common label set
-		allKeysAndValues := append(l.commonKeysAndValues, keysAndValues...)
+		// Make a new key-value map and inclue the common label set
+		kvMap := make(map[interface{}]interface{})
+		for k, v := range l.commonKeysAndValues {
+			kvMap[k] = v
+		}
+		internal.MustApplyKeysAndValues(keysAndValues, kvMap)
 
 		// Create the labels map from the param keys and values
 		labels := map[string]string{}
-		for i := 0; i < len(allKeysAndValues); i += 2 {
-			key := fmt.Sprintf("%v", allKeysAndValues[i])
-			value := fmt.Sprintf("%+v", allKeysAndValues[i+1])
+		for k, v := range kvMap {
+			key := fmt.Sprintf("%v", k)
+			value := fmt.Sprintf("%+v", v)
 
 			labels[key] = value
 		}

@@ -3,6 +3,7 @@ package cloudlogging
 import (
 	stdlog "log"
 
+	"github.com/qvik/go-cloudlogging/internal"
 	"go.uber.org/zap"
 	"google.golang.org/genproto/googleapis/api/monitoredres"
 )
@@ -29,7 +30,7 @@ type options struct {
 	useStackdriver               bool
 	stackdriverLogID             string
 	stackDriverMonitoredResource *monitoredres.MonitoredResource
-	commonKeysAndValues          []interface{}
+	commonKeysAndValues          map[interface{}]interface{}
 }
 
 // LogOption is an option for the cloudlogging API.
@@ -140,7 +141,8 @@ func WithStackdriver(gcpProjectID, credentialsFilePath,
 type withCommonKeysAndValues []interface{}
 
 func (w withCommonKeysAndValues) apply(opts *options) {
-	opts.commonKeysAndValues = w
+	opts.commonKeysAndValues = make(map[interface{}]interface{})
+	internal.MustApplyKeysAndValues(w, opts.commonKeysAndValues)
 }
 
 // WithCommonKeysAndValues returns a LogOption that adds a set of
