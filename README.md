@@ -8,12 +8,13 @@ The library is intended to be used with Go 1.10+ with module support but does no
 
 The module provides convenience constructor methods for various possible deployments Google Cloud Platform. Similar support for AWS is planned and pull requests for such are appreciated.
 
-## Changelog 
+## Changelog
 
-* 0.0.16: Added JSON formatting output hints
-* 0.0.15: Added default parameters for structured logging
-* 0.0.13: Argument handling bugfix, added GoDoc reference to README
-* 0.0.11: Improved documentation.
+- 1.0.0: Bumped version to 1.0.0. Fixed zap logger accumulating structured logging fields.
+- 0.0.16: Added JSON formatting output hints
+- 0.0.15: Added default parameters for structured logging
+- 0.0.13: Argument handling bugfix, added GoDoc reference to README
+- 0.0.11: Improved documentation.
 
 ## Usage
 
@@ -56,7 +57,7 @@ For convenience, several constructor methods are provided; see below.
 
 ### Google Cloud Platform convenience methods
 
-*Google Compute Engine (GCE) example:*
+_Google Compute Engine (GCE) example:_
 
 ```go
 func init() {
@@ -66,7 +67,7 @@ func init() {
 
 This could also used for Kuhernetes.
 
-*Google App Engine (GAE) ecample:*
+_Google App Engine (GAE) ecample:_
 
 ```go
 func init() {
@@ -74,7 +75,7 @@ func init() {
 }
 ```
 
-*Google Cloud Functions (GCF) example:*
+_Google Cloud Functions (GCF) example:_
 
 ```go
 func init() {
@@ -82,7 +83,7 @@ func init() {
 }
 ```
 
-*AWS Elastic Beanstalk / EC2 example:*
+_AWS Elastic Beanstalk / EC2 example:_
 
 ```go
 func init() {
@@ -94,19 +95,17 @@ func init() {
 }
 ```
 
-
-
 ## License
 
 The library is distributed with the MIT License.
 
-## Contributing 
+## Contributing
 
 Contributions to this library are welcomed. Any contributions have to meet the following criteria:
 
-* Meaningfulness. Discuss whether what you are about to contribute indeed belongs to this library in the first place before submitting a pull request.
-* Code style. Use gofmt and golint and you cannot go wrong with this. Generally do not exceed a line length of 80 characters.
-* Testing. Try and include tests for your code.
+- Meaningfulness. Discuss whether what you are about to contribute indeed belongs to this library in the first place before submitting a pull request.
+- Code style. Use gofmt and golint and you cannot go wrong with this. Generally do not exceed a line length of 80 characters.
+- Testing. Try and include tests for your code.
 
 ## Contact
 
@@ -114,7 +113,6 @@ Any questions? Contact matti@qvik.fi.
 
 ## References
 
-* [Stackdriver Logging](https://cloud.google.com/logging/)
-* [Stackdriver Go API](https://godoc.org/cloud.google.com/go/logging)
-* [Zap Logger](https://github.com/uber-go/zap)
-
+- [Stackdriver Logging](https://cloud.google.com/logging/)
+- [Stackdriver Go API](https://godoc.org/cloud.google.com/go/logging)
+- [Zap Logger](https://github.com/uber-go/zap)
