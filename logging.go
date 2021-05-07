@@ -75,8 +75,13 @@ type Logger struct {
 // structured logging purposes.
 // This is a light operation.
 // Panics if number of elements in keysAndValues is not even.
+// Panics on internal errors.
 func (l *Logger) WithAdditionalKeysAndValues(
 	keysAndValues ...interface{}) *Logger {
+
+	if len(keysAndValues) == 0 {
+		stdlog.Panicf("must pass keys and values")
+	}
 
 	if len(keysAndValues)%2 != 0 {
 		stdlog.Panicf("must pass even number of keysAndValues")
@@ -97,7 +102,13 @@ func (l *Logger) WithAdditionalKeysAndValues(
 
 	// Create a new Zap logger which wraps the new properties
 	if newLogger.zapLogger != nil {
-		newLogger.zapLogger = newLogger.zapLogger.With(keysAndValues...)
+		zapLogger, err := newLogger.zapConfig.Build()
+		if err != nil {
+			stdlog.Panicf("failed to create new zaplogger: %v", err)
+		}
+
+		keysAndValues := internal.MapToKeysAndValuesList(newLogger.commonKeysAndValues)
+		newLogger.zapLogger = zapLogger.Sugar().With(keysAndValues...)
 	}
 
 	return &newLogger
