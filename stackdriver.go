@@ -47,7 +47,7 @@ func createStackdriverLogger(opts options) (*stackdriver.Client,
 
 	// Emit a log entry for testing
 	logger.Log(stackdriver.Entry{
-		Payload:  "Stackdriver logger created",
+		Payload:  "Stackdriver logger created.",
 		Severity: stackdriver.Info,
 	})
 
