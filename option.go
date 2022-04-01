@@ -3,6 +3,7 @@ package cloudlogging
 import (
 	stdlog "log"
 
+	stackdriver "cloud.google.com/go/logging"
 	"github.com/qvik/go-cloudlogging/internal"
 	"go.uber.org/zap"
 	"google.golang.org/genproto/googleapis/api/monitoredres"
@@ -31,11 +32,18 @@ type options struct {
 	stackdriverLogID             string
 	stackDriverMonitoredResource *monitoredres.MonitoredResource
 	commonKeysAndValues          map[interface{}]interface{}
+	stackdriverUnitTestHook      func(stackdriver.Entry)
 }
 
 // LogOption is an option for the cloudlogging API.
 type LogOption interface {
 	apply(*options)
+}
+
+type withStackdriverUnitTestHook func(stackdriver.Entry)
+
+func (w withStackdriverUnitTestHook) apply(opts *options) {
+	opts.stackdriverUnitTestHook = w
 }
 
 type withLevel Level

@@ -113,22 +113,11 @@ func NewAppEngineLogger(args ...string) (*Logger, error) {
 		logID = arg0
 	}
 
-	if os.Getenv("NODE_ENV") == "production" {
-		projectID := os.Getenv("GOOGLE_CLOUD_PROJECT")
-		if projectID == "" {
-			return nil, fmt.Errorf("env var GOOGLE_CLOUD_PROJECT missing")
-		}
+	projectID := os.Getenv("GOOGLE_CLOUD_PROJECT")
+	serviceID := os.Getenv("GAE_SERVICE")
+	versionID := os.Getenv("GAE_VERSION")
 
-		serviceID := os.Getenv("GAE_SERVICE")
-		if serviceID == "" {
-			return nil, fmt.Errorf("env var GAE_SERVICE missing")
-		}
-
-		versionID := os.Getenv("GAE_VERSION")
-		if versionID == "" {
-			return nil, fmt.Errorf("env var GAE_VERSION missing")
-		}
-
+	if projectID != "" && serviceID != "" && versionID != "" {
 		// Create a monitored resource descriptor that will target GAE
 		monitoredRes := &monitoredres.MonitoredResource{
 			Type: "gae_app",
@@ -142,6 +131,7 @@ func NewAppEngineLogger(args ...string) (*Logger, error) {
 		opts = append(opts, WithStackdriver(projectID,
 			"", logID, monitoredRes))
 	} else {
+		// Not apparently running on Google App Engine, use local Zap logging
 		opts = append(opts, WithZap())
 	}
 

@@ -1,6 +1,56 @@
 package cloudlogging
 
-import "testing"
+import (
+	"fmt"
+	"testing"
+)
+
+const (
+	sampleLabel = "this_is_a_sample_label"
+	sampleValue = "This is a sample value for a logging label"
+)
+
+func BenchmarkPrimeLabelConversion(b *testing.B) {
+	myMap := make(map[string]string)
+	var key interface{} = sampleLabel
+	var value interface{} = sampleValue
+
+	for i := 0; i < b.N; i++ {
+		myMap[fmt.Sprint(key)] = fmt.Sprint(value)
+	}
+}
+
+func BenchmarkPrimeLabelKeyCast(b *testing.B) {
+	myMap := make(map[string]string)
+	var key interface{} = sampleLabel
+	var value interface{} = sampleValue
+
+	for i := 0; i < b.N; i++ {
+		if stringKey, ok := key.(string); ok {
+			myMap[stringKey] = fmt.Sprint(value)
+		} else {
+			myMap[fmt.Sprint(key)] = fmt.Sprint(value)
+		}
+	}
+}
+
+func BenchmarkPrimeLabelKeyValueCast(b *testing.B) {
+	myMap := make(map[string]string)
+	var key interface{} = sampleLabel
+	var value interface{} = sampleValue
+
+	for i := 0; i < b.N; i++ {
+		if stringKey, ok := key.(string); ok {
+			if stringValue, ok := value.(string); ok {
+				myMap[stringKey] = stringValue
+			} else {
+				myMap[stringKey] = fmt.Sprint(value)
+			}
+		} else {
+			myMap[fmt.Sprint(key)] = fmt.Sprint(value)
+		}
+	}
+}
 
 func compareListValuesToMap(list []interface{},
 	theMap map[interface{}]interface{}) bool {

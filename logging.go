@@ -66,6 +66,10 @@ type Logger struct {
 	// and not the formatted logging (eg. Debug(), but not Debugf()).
 	// The format is: key1, value1, key2, value2, ...
 	commonKeysAndValues map[interface{}]interface{}
+
+	// When set, the logger emits all stackdriver logging here instead of the actual
+	// logger. This is meant to be used in unit testing.
+	stackdriverDebugHook func(stackdriver.Entry)
 }
 
 // WithAdditionalKeysAndValues creates a new logger that uses the current
@@ -133,13 +137,18 @@ func NewLogger(opt ...LogOption) (*Logger, error) {
 	var zapLogger *zap.SugaredLogger
 
 	if opts.useStackdriver {
-		client, logger, err := createStackdriverLogger(opts)
-		if err != nil {
-			return nil, fmt.Errorf("failed to create Stackdriver log: %v", err)
-		}
+		if opts.stackdriverUnitTestHook != nil {
+			stackdriverClient = &stackdriver.Client{}
+			stackdriverLogger = &stackdriver.Logger{}
+		} else {
+			client, logger, err := createStackdriverLogger(opts)
+			if err != nil {
+				return nil, fmt.Errorf("failed to create Stackdriver log: %v", err)
+			}
 
-		stackdriverClient = client
-		stackdriverLogger = logger
+			stackdriverClient = client
+			stackdriverLogger = logger
+		}
 	}
 
 	if opts.useZap {
@@ -161,12 +170,13 @@ func NewLogger(opt ...LogOption) (*Logger, error) {
 	}
 
 	l := &Logger{
-		logLevel:            opts.logLevel,
-		stackdriverClient:   stackdriverClient,
-		stackdriverLogger:   stackdriverLogger,
-		zapConfig:           zapConfig,
-		zapLogger:           zapLogger,
-		commonKeysAndValues: opts.commonKeysAndValues,
+		logLevel:             opts.logLevel,
+		stackdriverClient:    stackdriverClient,
+		stackdriverLogger:    stackdriverLogger,
+		zapConfig:            zapConfig,
+		zapLogger:            zapLogger,
+		commonKeysAndValues:  opts.commonKeysAndValues,
+		stackdriverDebugHook: opts.stackdriverUnitTestHook,
 	}
 
 	return l, nil
@@ -273,27 +283,49 @@ func (l *Logger) logImpl(level Level, payload interface{},
 			severity = s
 		}
 
-		// Make a new key-value map and inclue the common label set
-		kvMap := make(map[interface{}]interface{})
-		for k, v := range l.commonKeysAndValues {
-			kvMap[k] = v
-		}
-		internal.MustApplyKeysAndValues(keysAndValues, kvMap)
+		labels := make(map[string]string, len(l.commonKeysAndValues)+len(keysAndValues))
 
-		// Create the labels map from the param keys and values
-		labels := map[string]string{}
-		for k, v := range kvMap {
-			key := fmt.Sprintf("%v", k)
-			value := fmt.Sprintf("%+v", v)
-
-			labels[key] = value
+		for key, value := range l.commonKeysAndValues {
+			if stringKey, ok := key.(string); ok {
+				if stringValue, ok := value.(string); ok {
+					labels[stringKey] = stringValue
+				} else {
+					labels[stringKey] = fmt.Sprint(value)
+				}
+			} else {
+				labels[fmt.Sprint(key)] = fmt.Sprint(value)
+			}
 		}
 
-		l.stackdriverLogger.Log(stackdriver.Entry{
+		count := 0
+		for count < len(keysAndValues) {
+			key := keysAndValues[count]
+			value := keysAndValues[count+1]
+
+			if stringKey, ok := key.(string); ok {
+				if stringValue, ok := value.(string); ok {
+					labels[stringKey] = stringValue
+				} else {
+					labels[stringKey] = fmt.Sprint(value)
+				}
+			} else {
+				labels[fmt.Sprint(key)] = fmt.Sprint(value)
+			}
+
+			count += 2
+		}
+
+		entry := stackdriver.Entry{
 			Payload:  payload,
 			Labels:   labels,
 			Severity: severity,
-		})
+		}
+
+		if l.stackdriverDebugHook != nil {
+			l.stackdriverDebugHook(entry)
+		} else {
+			l.stackdriverLogger.Log(entry)
+		}
 	}
 
 	// Emit local logging - if enabled
