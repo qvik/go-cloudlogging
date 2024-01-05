@@ -193,3 +193,18 @@ func NewCloudRunLogger(projectID string, args ...string) (*Logger, error) {
 
 	return NewLogger(opts...)
 }
+
+// MustNewCloudRunLogger returns a Logger suitable for use in Cloud Run.
+// On local dev server it uses the local stdout -logger and in the cloud it
+// uses the Google Cloud Logging logger.
+// The first value of args is the logID. If omitted or empty string is given,
+// the default value of "run.googleapis.com/request_log" is used.
+// Panics on errors.
+func MustNewCloudRunLogger(projectID string, args ...string) *Logger {
+	log, err := NewCloudRunLogger(projectID, args...)
+	if err != nil {
+		stdlog.Panicf("failed to create logger: %v", err)
+	}
+
+	return log
+}
