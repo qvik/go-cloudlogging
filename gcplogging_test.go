@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"testing"
 
-	stackdriver "cloud.google.com/go/logging"
+	gcloudlog "cloud.google.com/go/logging"
 	"google.golang.org/genproto/googleapis/api/monitoredres"
 )
 
@@ -13,7 +13,7 @@ func TestCreateAppEngineLogger(t *testing.T) {
 	_ = MustNewAppEngineLogger()
 }
 
-func TestStackdriverLogger(t *testing.T) {
+func TestGoogleCloudLoggingLogger(t *testing.T) {
 	projectID := "test"
 	serviceID := "test"
 	versionID := "test"
@@ -28,15 +28,15 @@ func TestStackdriverLogger(t *testing.T) {
 		},
 	}
 
-	logEntries := make(map[string]stackdriver.Entry)
+	logEntries := make(map[string]gcloudlog.Entry)
 
-	logHook := func(entry stackdriver.Entry) {
+	logHook := func(entry gcloudlog.Entry) {
 		logEntries[fmt.Sprint(entry.Payload)] = entry
 	}
 
 	rootLog := MustNewLogger(
-		WithStackdriver(projectID, "", "gae_app", monitoredRes),
-		withStackdriverUnitTestHook(logHook),
+		WithGoogleCloudLogging(projectID, "", "gae_app", monitoredRes),
+		withGoogleCloudLoggingUnitTestHook(logHook),
 	)
 
 	labels1 := []interface{}{"key1", "value1", "key2", false}
