@@ -3,7 +3,7 @@ package cloudlogging
 import (
 	stdlog "log"
 
-	stackdriver "cloud.google.com/go/logging"
+	gcloudlog "cloud.google.com/go/logging"
 	"github.com/qvik/go-cloudlogging/internal"
 	"go.uber.org/zap"
 	"google.golang.org/genproto/googleapis/api/monitoredres"
@@ -20,19 +20,19 @@ const (
 )
 
 type options struct {
-	logLevel                     Level
-	gcpProjectID                 string
-	credentialsFilePath          string
-	useZap                       bool
-	zapConfig                    *zap.Config
-	outputPaths                  []string
-	errorOutputPaths             []string
-	outputHints                  []OutputHint
-	useStackdriver               bool
-	stackdriverLogID             string
-	stackDriverMonitoredResource *monitoredres.MonitoredResource
-	commonKeysAndValues          map[interface{}]interface{}
-	stackdriverUnitTestHook      func(stackdriver.Entry)
+	logLevel                            Level
+	gcpProjectID                        string
+	credentialsFilePath                 string
+	useZap                              bool
+	zapConfig                           *zap.Config
+	outputPaths                         []string
+	errorOutputPaths                    []string
+	outputHints                         []OutputHint
+	useGoogleCloudLogging               bool
+	googleCloudLoggingLogID             string
+	googleCloudLoggingMonitoredResource *monitoredres.MonitoredResource
+	commonKeysAndValues                 map[interface{}]interface{}
+	googleCloudLoggingUnitTestHook      func(gcloudlog.Entry)
 }
 
 // LogOption is an option for the cloudlogging API.
@@ -40,10 +40,10 @@ type LogOption interface {
 	apply(*options)
 }
 
-type withStackdriverUnitTestHook func(stackdriver.Entry)
+type withGoogleCloudLoggingUnitTestHook func(gcloudlog.Entry)
 
-func (w withStackdriverUnitTestHook) apply(opts *options) {
-	opts.stackdriverUnitTestHook = w
+func (w withGoogleCloudLoggingUnitTestHook) apply(opts *options) {
+	opts.googleCloudLoggingUnitTestHook = w
 }
 
 type withLevel Level
@@ -114,35 +114,35 @@ func WithZap(config ...*zap.Config) LogOption {
 	return withZap{zapConfig: cfg}
 }
 
-type withStackdriver struct {
-	gcpProjectID        string
-	credentialsFilePath string
-	stackdriverLogID    string
-	monitoredResource   *monitoredres.MonitoredResource
+type withGoogleCloudLogging struct {
+	gcpProjectID            string
+	credentialsFilePath     string
+	googleCloudLoggingLogID string
+	monitoredResource       *monitoredres.MonitoredResource
 }
 
-func (w withStackdriver) apply(opts *options) {
-	opts.useStackdriver = true
+func (w withGoogleCloudLogging) apply(opts *options) {
+	opts.useGoogleCloudLogging = true
 	opts.gcpProjectID = w.gcpProjectID
-	opts.stackdriverLogID = w.stackdriverLogID
+	opts.googleCloudLoggingLogID = w.googleCloudLoggingLogID
 	opts.credentialsFilePath = w.credentialsFilePath
-	opts.stackDriverMonitoredResource = w.monitoredResource
+	opts.googleCloudLoggingMonitoredResource = w.monitoredResource
 }
 
-// WithStackdriver returns a LogOption that enables Stackdriver Logger
+// WithGoogleCloudLogging returns a LogOption that enables Google Cloud Logging Logger
 // and configures it to use the given project id.
 // If you supply empty string for credentialsFilePath, the default
 // service account is used.
-// Stackdriver log backend does not react to OutputHints.
-func WithStackdriver(gcpProjectID, credentialsFilePath,
-	stackdriverLogID string,
+// Google cloud logging log backend does not react to OutputHints.
+func WithGoogleCloudLogging(gcpProjectID, credentialsFilePath,
+	googleCloudLoggingLogID string,
 	monitoredResource *monitoredres.MonitoredResource) LogOption {
 
-	return withStackdriver{
-		gcpProjectID:        gcpProjectID,
-		credentialsFilePath: credentialsFilePath,
-		stackdriverLogID:    stackdriverLogID,
-		monitoredResource:   monitoredResource,
+	return withGoogleCloudLogging{
+		gcpProjectID:            gcpProjectID,
+		credentialsFilePath:     credentialsFilePath,
+		googleCloudLoggingLogID: googleCloudLoggingLogID,
+		monitoredResource:       monitoredResource,
 	}
 }
 

@@ -7,7 +7,7 @@ import (
 	stdlog "log"
 	"os"
 
-	stackdriver "cloud.google.com/go/logging"
+	gcloudlog "cloud.google.com/go/logging"
 	"github.com/qvik/go-cloudlogging/internal"
 	"go.uber.org/zap"
 )
@@ -25,7 +25,7 @@ const (
 )
 
 // Logger writes logs to the local logger as well as
-// the Stackdriver cloud logs. Logger is mostly immutable - the only thing
+// the Google Cloud Logging cloud logs. Logger is mostly immutable - the only thing
 // that can be modified is the log level.
 //
 // Logger is thread-safe to use for any of the logging calls.
@@ -38,7 +38,7 @@ const (
 // Logger uses the Zap (https://github.com/uber-go/zap)
 // library for local logging.
 //
-// Logger uses Stackdriver Go library for cloud logging.
+// Logger uses Google Cloud Logging Go library for cloud logging.
 //
 // The API is compatible (and thus a drop-in replacement) for popular
 // logging libraries such as:
@@ -54,11 +54,11 @@ type Logger struct {
 	zapConfig *zap.Config
 	zapLogger *zap.SugaredLogger
 
-	// Stackdriver client
-	stackdriverClient *stackdriver.Client
+	// Google Cloud Logging client
+	googleCloudLoggingClient *gcloudlog.Client
 
-	// Stackdriver logger
-	stackdriverLogger *stackdriver.Logger
+	// Google Cloud Logging logger
+	googleCloudLoggingLogger *gcloudlog.Logger
 
 	// Common log parameters. These are added to every structured log message
 	// in addition to the parameters issued in the actual logging call.
@@ -67,9 +67,9 @@ type Logger struct {
 	// The format is: key1, value1, key2, value2, ...
 	commonKeysAndValues map[interface{}]interface{}
 
-	// When set, the logger emits all stackdriver logging here instead of the actual
+	// When set, the logger emits all Google Cloud Logging here instead of the actual
 	// logger. This is meant to be used in unit testing.
-	stackdriverDebugHook func(stackdriver.Entry)
+	googleCloudLoggingDebugHook func(gcloudlog.Entry)
 }
 
 // WithAdditionalKeysAndValues creates a new logger that uses the current
@@ -127,27 +127,27 @@ func NewLogger(opt ...LogOption) (*Logger, error) {
 		o.apply(&opts)
 	}
 
-	if opts.useStackdriver && opts.gcpProjectID == "" {
-		return nil, fmt.Errorf("Stackdriver requires a GCP project ID")
+	if opts.useGoogleCloudLogging && opts.gcpProjectID == "" {
+		return nil, fmt.Errorf("google cloud logging requires a GCP project ID")
 	}
 
-	var stackdriverClient *stackdriver.Client
-	var stackdriverLogger *stackdriver.Logger
+	var googleCloudLoggingClient *gcloudlog.Client
+	var googleCloudLoggingLogger *gcloudlog.Logger
 	var zapConfig *zap.Config
 	var zapLogger *zap.SugaredLogger
 
-	if opts.useStackdriver {
-		if opts.stackdriverUnitTestHook != nil {
-			stackdriverClient = &stackdriver.Client{}
-			stackdriverLogger = &stackdriver.Logger{}
+	if opts.useGoogleCloudLogging {
+		if opts.googleCloudLoggingUnitTestHook != nil {
+			googleCloudLoggingClient = &gcloudlog.Client{}
+			googleCloudLoggingLogger = &gcloudlog.Logger{}
 		} else {
-			client, logger, err := createStackdriverLogger(opts)
+			client, logger, err := createGoogleCloudLoggingLogger(opts)
 			if err != nil {
-				return nil, fmt.Errorf("failed to create Stackdriver log: %v", err)
+				return nil, fmt.Errorf("failed to create google cloud logging log: %w", err)
 			}
 
-			stackdriverClient = client
-			stackdriverLogger = logger
+			googleCloudLoggingClient = client
+			googleCloudLoggingLogger = logger
 		}
 	}
 
@@ -156,7 +156,7 @@ func NewLogger(opt ...LogOption) (*Logger, error) {
 
 		logger, config, err := createZapLogger(opts)
 		if err != nil {
-			return nil, fmt.Errorf("failed to create Zap logger: %v", err)
+			return nil, fmt.Errorf("failed to create Zap logger: %w", err)
 		}
 
 		zapConfig = config
@@ -170,13 +170,13 @@ func NewLogger(opt ...LogOption) (*Logger, error) {
 	}
 
 	l := &Logger{
-		logLevel:             opts.logLevel,
-		stackdriverClient:    stackdriverClient,
-		stackdriverLogger:    stackdriverLogger,
-		zapConfig:            zapConfig,
-		zapLogger:            zapLogger,
-		commonKeysAndValues:  opts.commonKeysAndValues,
-		stackdriverDebugHook: opts.stackdriverUnitTestHook,
+		logLevel:                    opts.logLevel,
+		googleCloudLoggingClient:    googleCloudLoggingClient,
+		googleCloudLoggingLogger:    googleCloudLoggingLogger,
+		zapConfig:                   zapConfig,
+		zapLogger:                   zapLogger,
+		commonKeysAndValues:         opts.commonKeysAndValues,
+		googleCloudLoggingDebugHook: opts.googleCloudLoggingUnitTestHook,
 	}
 
 	return l, nil
@@ -213,8 +213,8 @@ func (l *Logger) Close() error {
 	// Attempt to flush the loggers' buffers; nevermind errors
 	_ = l.Flush()
 
-	if l.stackdriverClient != nil {
-		if err := l.stackdriverClient.Close(); err != nil {
+	if l.googleCloudLoggingClient != nil {
+		if err := l.googleCloudLoggingClient.Close(); err != nil {
 			return err
 		}
 	}
@@ -225,8 +225,8 @@ func (l *Logger) Close() error {
 // Flush flushes the underlying loggers' buffers. Returns error if
 // there are errors.
 func (l *Logger) Flush() error {
-	if l.stackdriverLogger != nil {
-		if err := l.stackdriverLogger.Flush(); err != nil {
+	if l.googleCloudLoggingLogger != nil {
+		if err := l.googleCloudLoggingLogger.Flush(); err != nil {
 			return err
 		}
 	}
@@ -246,14 +246,14 @@ func (l *Logger) logImplf(level Level, format string, args ...interface{}) {
 		return
 	}
 
-	// Emit Stackdriver logging - if enabled
-	if l.stackdriverLogger != nil {
-		severity := stackdriver.Default
-		if s, ok := levelToStackdriverSeverityMap[level]; ok {
+	// Emit Google Cloud Logging logging - if enabled
+	if l.googleCloudLoggingLogger != nil {
+		severity := gcloudlog.Default
+		if s, ok := levelToGoogleCloudLoggingSeverityMap[level]; ok {
 			severity = s
 		}
 
-		l.stackdriverLogger.Log(stackdriver.Entry{
+		l.googleCloudLoggingLogger.Log(gcloudlog.Entry{
 			Payload:  fmt.Sprintf(format, args...),
 			Severity: severity,
 		})
@@ -276,10 +276,10 @@ func (l *Logger) logImpl(level Level, payload interface{},
 		stdlog.Panicf("must pass even number of keysAndValues")
 	}
 
-	// Emit Stackdriver logging - if enabled
-	if l.stackdriverLogger != nil {
-		severity := stackdriver.Default
-		if s, ok := levelToStackdriverSeverityMap[level]; ok {
+	// Emit Google Cloud Logging logging - if enabled
+	if l.googleCloudLoggingLogger != nil {
+		severity := gcloudlog.Default
+		if s, ok := levelToGoogleCloudLoggingSeverityMap[level]; ok {
 			severity = s
 		}
 
@@ -315,16 +315,16 @@ func (l *Logger) logImpl(level Level, payload interface{},
 			count += 2
 		}
 
-		entry := stackdriver.Entry{
+		entry := gcloudlog.Entry{
 			Payload:  payload,
 			Labels:   labels,
 			Severity: severity,
 		}
 
-		if l.stackdriverDebugHook != nil {
-			l.stackdriverDebugHook(entry)
+		if l.googleCloudLoggingDebugHook != nil {
+			l.googleCloudLoggingDebugHook(entry)
 		} else {
-			l.stackdriverLogger.Log(entry)
+			l.googleCloudLoggingLogger.Log(entry)
 		}
 	}
 
