@@ -160,7 +160,7 @@ func MustNewAppEngineLogger(args ...string) *Logger {
 // uses the Google Cloud Logging logger.
 // The first value of args is the logID. If omitted or empty string is given,
 // the default value of "run.googleapis.com/request_log" is used.
-func NewCloudRunLogger(projectID string, args ...string) (*Logger, error) {
+func NewCloudRunLogger(location, projectID string, args ...string) (*Logger, error) {
 	opts := []LogOption{}
 
 	logID := "run.googleapis.com/request_log"
@@ -177,6 +177,7 @@ func NewCloudRunLogger(projectID string, args ...string) (*Logger, error) {
 		monitoredRes := &monitoredres.MonitoredResource{
 			Type: "cloud_run_revision",
 			Labels: map[string]string{
+				"location":           location,
 				"project_id":         projectID,
 				"service_name":       service,
 				"revision_name":      revision,
@@ -200,8 +201,8 @@ func NewCloudRunLogger(projectID string, args ...string) (*Logger, error) {
 // The first value of args is the logID. If omitted or empty string is given,
 // the default value of "run.googleapis.com/request_log" is used.
 // Panics on errors.
-func MustNewCloudRunLogger(projectID string, args ...string) *Logger {
-	log, err := NewCloudRunLogger(projectID, args...)
+func MustNewCloudRunLogger(location, projectID string, args ...string) *Logger {
+	log, err := NewCloudRunLogger(location, projectID, args...)
 	if err != nil {
 		stdlog.Panicf("failed to create logger: %v", err)
 	}
