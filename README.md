@@ -1,5 +1,11 @@
 # Cloud Logging for Go
 
+## Deprecation notice
+
+As writing structured Cloud Logging has now been properly supported by the log gatherers across GCP services for a while and given that writing logs via stdio / the logs agent is more efficient, this library will now be deprecated.
+
+## About
+
 [![GoDoc](https://godoc.org/github.com/qvik/go-cloudlogging?status.svg)](https://godoc.org/github.com/qvik/go-cloudlogging)
 
 This module provides a log wrapper that is intended to handle logging in cloud-based backend environment.
